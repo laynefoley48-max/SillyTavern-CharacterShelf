@@ -6,6 +6,6 @@
   "js": "index.js",
   "css": "style.css",
   "author": "ChatGPT",
-  "version": "0.3.0",
-  "description": "Private character notes with a compact avatar grid, native-tag details, theme-aware draggable launcher, wand menu and extension settings."
+  "version": "0.4.0",
+  "description": "Private character notes with compact searching/sorting, note-status filters, native collapsible settings, full tag list, and theme-cycle palette."
 }
