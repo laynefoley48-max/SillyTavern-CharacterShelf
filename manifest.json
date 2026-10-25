@@ -6,6 +6,6 @@
   "js": "index.js",
   "css": "style.css",
   "author": "ChatGPT",
-  "version": "0.6.3",
-  "description": "Lightweight character notes browser: side-docked book temporarily peeks out, auto-retracts after 3 idle seconds, supports two-tap open/close, mobile editor and JSON backup."
+  "version": "0.7.0",
+  "description": "Private character notes with 20/30/50/100 per-page pagination, GPU-composited frame-throttled mini-window dragging, and a two-state floating book with 3-second idle retract."
 }
