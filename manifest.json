@@ -6,6 +6,6 @@
   "js": "index.js",
   "css": "style.css",
   "author": "ChatGPT",
-  "version": "0.6.1",
-  "description": "Lightweight movable character notes browser with a fixed-size scrollable mobile editor, direct-to-list save, note filters, half-hidden floating book and JSON backup."
+  "version": "0.6.2",
+  "description": "Lightweight movable character notes browser; half-hidden book unfolds on first tap and toggles browser on subsequent taps; stable editor, filters and JSON backup."
 }
