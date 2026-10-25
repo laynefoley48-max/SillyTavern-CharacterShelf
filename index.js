@@ -770,7 +770,6 @@ function launcher() {
 }
 
 const RELEASE_SOURCE = 'https://raw.githubusercontent.com/laynefoley48-max/SillyTavern-CharacterShelf/main';
-const CHANGELOG_PAGE = 'https://github.com/laynefoley48-max/SillyTavern-CharacterShelf/blob/main/CHANGELOG.md';
 let localVersionRequest = null;
 
 async function installedVersion() {
@@ -895,11 +894,7 @@ function buildSettings() {
     );
     const changelog = node('div', 'cs-changelog', '展开后读取在线更新日志…');
     changelog.setAttribute('aria-live', 'polite');
-    const more = node('a', 'cs-changelog-link', '在 GitHub 查看完整日志');
-    more.href = CHANGELOG_PAGE;
-    more.target = '_blank';
-    more.rel = 'noopener noreferrer';
-    infoPanel.append(changelog, more);
+    infoPanel.append(changelog);
     let changelogLoaded = false;
     infoToggle.addEventListener('click', async () => {
         infoPanel.hidden = !infoPanel.hidden;
@@ -911,7 +906,7 @@ function buildSettings() {
             renderShelfChangelog(changelog, raw);
             changelogLoaded = true;
         } catch (_) {
-            changelog.textContent = '暂时无法读取在线更新日志，可点击下方链接查看。';
+            changelog.textContent = '暂时无法读取在线更新日志，请稍后再试。';
         }
     });
 
