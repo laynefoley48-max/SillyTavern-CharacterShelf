@@ -1,11 +1,11 @@
 {
-  "display_name": "角色卡册 · Character Shelf",
+  "display_name": "角色备注 · Character Notes",
   "loading_order": 50,
   "requires": [],
   "optional": [],
   "js": "index.js",
   "css": "style.css",
   "author": "ChatGPT",
-  "version": "0.2.0",
-  "description": "Private character notes with native tags, list/grid, day/gray/follow-tavern themes and explicit character navigation."
+  "version": "0.3.0",
+  "description": "Private character notes with a compact avatar grid, native-tag details, theme-aware draggable launcher, wand menu and extension settings."
 }
