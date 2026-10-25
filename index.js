@@ -363,7 +363,7 @@ function createUi() {
             return render();
         }
         if (action === 'backup') return downloadNotes();
-        if (action === 'restore') return root.querySelector('#cs-import-file').click();
+        if (action === 'restore') return document.getElementById('cs-import-file')?.click();
         if (action === 'open') {
             const key = target.closest('[data-avatar-key]')?.dataset.avatarKey;
             if (key) openDetails(key);
@@ -374,11 +374,14 @@ function createUi() {
     root.querySelector('#cs-note-input').addEventListener('input', e => {
         root.querySelector('#cs-length').textContent = e.target.value.length + ' 字';
     });
-    root.querySelector('#cs-import-file').addEventListener('change', async e => {
+    const importInput = root.querySelector('#cs-import-file');
+    importInput.addEventListener('change', async e => {
         try { await restoreNotes(e.target.files?.[0]); }
         catch (error) { window.toastr?.error?.(error.message, '角色备注 · 恢复失败'); }
         finally { e.target.value = ''; }
     });
+    // The hidden file picker must also be usable while the role-browser modal is closed.
+    document.body.append(importInput);
     document.addEventListener('keydown', event => {
         if (root.hidden) return;
         if (event.key === 'Escape') {
@@ -411,11 +414,25 @@ function buildSettings() {
     const container = document.getElementById('extensions_settings2')
         || document.getElementById('extensions_settings');
     if (!container) return;
-    const section = node('section', 'extension_container cs-settings');
+    const section = node('section', 'cs-settings');
     section.id = 'cs-settings-panel';
-    const heading = node('h4', 'cs-settings-title', '角色备注');
-    const description = node('p', 'cs-settings-description', '独立浏览角色卡与私人备注');
-    const open = node('button', 'menu_button cs-settings-open', '打开角色备注');
+    const drawer = node('div', 'inline-drawer');
+    const header = node('div', 'inline-drawer-toggle inline-drawer-header');
+    header.tabIndex = 0;
+    header.setAttribute('role', 'button');
+    header.setAttribute('aria-label', '展开或收起角色备注设置');
+    const heading = node('b', '', '角色备注');
+    const chevron = node('div', 'inline-drawer-icon fa-solid fa-circle-chevron-down down');
+    chevron.setAttribute('aria-hidden', 'true');
+    header.append(heading, chevron);
+    header.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            header.click();
+        }
+    });
+    const content = node('div', 'inline-drawer-content cs-settings-content');
+    const open = node('button', 'menu_button menu_button_icon cs-settings-open', '打开角色备注');
     open.type = 'button';
     open.addEventListener('click', openPanel);
     const row = node('label', 'cs-settings-toggle');
@@ -423,15 +440,23 @@ function buildSettings() {
     checkbox.type = 'checkbox';
     checkbox.id = 'cs-float-toggle';
     checkbox.checked = state().showFloat;
-    const label = node('span', '', '显示书本悬浮按钮');
     checkbox.addEventListener('change', () => {
         state().showFloat = checkbox.checked;
         save();
         updateFloat();
     });
-    row.append(checkbox, label);
-    const foot = node('p', 'cs-settings-description', '悬浮按钮可拖动，配色跟随角色备注当前主题。');
-    section.append(heading, description, open, row, foot);
+    row.append(checkbox, node('span', '', '显示书本悬浮按钮'));
+    const actions = node('div', 'cs-settings-actions');
+    const backup = node('button', 'menu_button menu_button_icon', '备份备注');
+    backup.type = 'button';
+    backup.addEventListener('click', downloadNotes);
+    const restore = node('button', 'menu_button menu_button_icon', '恢复备注');
+    restore.type = 'button';
+    restore.addEventListener('click', () => document.getElementById('cs-import-file')?.click());
+    actions.append(backup, restore);
+    content.append(open, row, actions);
+    drawer.append(header, content);
+    section.append(drawer);
     container.prepend(section);
 }
 function buildWand() {
@@ -548,7 +573,9 @@ function buildFloat() {
     updateFloat();
 }
 function init() {
+    const previousPaletteVersion = extension_settings[KEY]?.themeVersion;
     state();
+    if (previousPaletteVersion !== 4) save();
     createUi();
     launcher();
     buildSettings();
