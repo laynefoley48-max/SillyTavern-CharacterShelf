@@ -665,3 +665,134 @@
 /* v0.4.1: Keep the name and its preview together, with extra breathing room below. */
 #character-shelf-root .cs-card-list .cs-name { line-height: 1.34; }
 #character-shelf-root .cs-card-list .cs-info { align-self: start; }
+
+
+/* v0.5.0 — A real movable, non-blocking compact browser. The chat stays visible. */
+#character-shelf-root[data-fullscreen="false"] {
+    pointer-events: none;
+}
+#character-shelf-root[data-fullscreen="false"] .cs-backdrop {
+    display: none;
+}
+#character-shelf-root[data-fullscreen="false"] .cs-window {
+    pointer-events: auto;
+    position: absolute;
+    top: 9dvh;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(600px, calc(100vw - 44px));
+    height: min(545px, 68dvh, calc(var(--cs-visible-height, 100dvh) - 16px));
+    min-width: 0;
+    max-width: calc(100vw - 16px);
+    max-height: calc(var(--cs-visible-height, 100dvh) - 16px);
+    border: 1px solid var(--cs-border);
+    border-radius: 13px;
+    box-shadow: 0 8px 36px rgba(0,0,0,.32);
+}
+#character-shelf-root[data-fullscreen="true"] {
+    pointer-events: auto;
+}
+#character-shelf-root[data-fullscreen="true"] .cs-window {
+    pointer-events: auto;
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: none;
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+#character-shelf-root[data-fullscreen="false"] .cs-header,
+#character-shelf-root[data-fullscreen="false"] .cs-detail-header,
+#character-shelf-root[data-fullscreen="false"] .cs-editor-title {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+#character-shelf-root[data-fullscreen="false"] .cs-header:active,
+#character-shelf-root[data-fullscreen="false"] .cs-detail-header:active,
+#character-shelf-root[data-fullscreen="false"] .cs-editor-title:active {
+    cursor: grabbing;
+}
+/* Preview and editor stay INSIDE the compact window instead of dimming the entire chat. */
+#character-shelf-root .cs-window > .cs-detail-layer,
+#character-shelf-root .cs-window > .cs-editor-layer {
+    position: absolute;
+    inset: 0;
+    min-width: 0;
+    min-height: 0;
+}
+#character-shelf-root .cs-window > .cs-detail-layer .cs-detail-window,
+#character-shelf-root .cs-window > .cs-editor-layer .cs-editor-window {
+    width: min(535px, calc(100% - 20px));
+    max-width: calc(100% - 20px);
+    max-height: calc(100% - 18px);
+    min-width: 0;
+    min-height: 0;
+    padding: 13px;
+}
+#character-shelf-root .cs-window > .cs-detail-layer .cs-detail-note {
+    max-height: min(35dvh, 230px);
+}
+#character-shelf-root .cs-window > .cs-editor-layer #cs-note-input {
+    min-height: 85px;
+    max-height: min(28dvh, 180px);
+}
+#character-shelf-root[data-fullscreen="true"] .cs-detail-layer .cs-detail-window,
+#character-shelf-root[data-fullscreen="true"] .cs-editor-layer .cs-editor-window {
+    padding: 19px;
+}
+#character-shelf-root[data-fullscreen="true"] .cs-detail-layer .cs-detail-note {
+    max-height: min(48dvh, 350px);
+}
+/* Float always stays above the browser: the book itself toggles show/hide. */
+#cs-float-button {
+    z-index: 2147482500;
+}
+/* Keep the one-row toolbar usable even on narrow portrait phones. */
+@media (max-width: 350px) {
+    #character-shelf-root .cs-toolbar {
+        gap: 3px;
+        padding: 5px 6px;
+    }
+    #character-shelf-root #cs-search {
+        min-width: 34px;
+        font-size: 10.5px;
+        padding-inline: 5px;
+    }
+    #character-shelf-root #cs-sort {
+        min-width: 77px;
+        flex-basis: 82px;
+        font-size: 10.5px;
+    }
+    #character-shelf-root .cs-switch button {
+        width: 22px;
+        flex-basis: 22px;
+        font-size: 11px;
+    }
+    #character-shelf-root .cs-filters {
+        padding-inline: 6px;
+        gap: 3px;
+    }
+    #character-shelf-root .cs-filters button {
+        font-size: 10px;
+        padding-inline: 1px;
+    }
+}
+/* On short or landscape viewports preserve a compact-but-usable panel. */
+@media (max-height: 500px) {
+    #character-shelf-root[data-fullscreen="false"] .cs-window {
+        top: 8px;
+        height: min(350px, calc(var(--cs-visible-height, 100dvh) - 16px));
+    }
+    #character-shelf-root .cs-detail-note {
+        padding-block: 7px;
+    }
+    #character-shelf-root .cs-detail-actions {
+        padding-top: 6px;
+    }
+}
