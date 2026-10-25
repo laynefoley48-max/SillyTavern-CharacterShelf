@@ -312,13 +312,15 @@ function saveEditor() {
     save();
     const anchor = editorAnchor;
     closeEditor();
-    editorAnchor = null;
+    closeDetails();
     if (panelNeedsRefresh) {
         cardCache.clear();
         render(anchor);
         panelNeedsRefresh = false;
     } else refreshEditedCard(key, previous, value, anchor);
-    if (detailKey) updateDetails();
+    const results = document.getElementById('cs-results');
+    const restoredCard = cardByKey(results, key);
+    restoredCard?.querySelector('.cs-open')?.focus({ preventScroll: true });
 }
 function viewportBounds() {
     const bounds = layoutViewport || { width: window.innerWidth, height: window.innerHeight };
@@ -362,20 +364,7 @@ function positionPanel() {
     const x = saved && Number.isFinite(saved.x) ? saved.x : (size.width - rect.width) / 2;
     const y = saved && Number.isFinite(saved.y) ? saved.y : size.height * 0.09;
     const point = clampWindow(x, y, rect.width, rect.height);
-    let top = point.y;
-    if (inputFocus) {
-        const viewport = window.visualViewport;
-        const availableBottom = (viewport?.offsetTop || 0) + (viewport?.height || window.innerHeight) - 10;
-        if (availableBottom < size.height - 95) {
-            const input = root.querySelector('#cs-note-input');
-            if (input && !root.querySelector('#cs-editor').hidden) {
-                const relativeBottom = input.getBoundingClientRect().bottom - rect.top;
-                const minTop = Math.min(8, Math.round(78 - rect.height * 0.48));
-                top = Math.max(minTop, point.y - Math.max(0, point.y + relativeBottom - availableBottom));
-            }
-        }
-    }
-    const nextLeft = point.x + 'px', nextTop = top + 'px';
+    const nextLeft = point.x + 'px', nextTop = point.y + 'px';
     if (win.style.left !== nextLeft) win.style.left = nextLeft;
     if (win.style.top !== nextTop) win.style.top = nextTop;
     if (win.style.transform !== 'none') win.style.transform = 'none';
@@ -392,6 +381,8 @@ function queueViewportUpdate() {
             const root = document.getElementById(ROOT_ID);
             if (root) setPanelBaseHeight(root);
         }
+        // The keyboard owns its own viewport; never move or resize this window while typing.
+        if (keyboardRaised()) return;
         updateFloat();
         positionPanel();
     });
@@ -445,7 +436,8 @@ function enablePanelDrag(root) {
         if (!handle || event.target.closest('button, input, select, textarea, a')) return;
         const rect = win.getBoundingClientRect();
         panelPointer = { id: event.pointerId, handle,
-            x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moving: false };
+            x: event.clientX, y: event.clientY, left: rect.left, top: rect.top,
+            width: rect.width, height: rect.height, moving: false };
         try { handle.setPointerCapture(event.pointerId); } catch (_) {}
     });
     root.addEventListener('pointermove', event => {
@@ -454,8 +446,7 @@ function enablePanelDrag(root) {
         const dx = event.clientX - g.x, dy = event.clientY - g.y;
         if (!g.moving && Math.hypot(dx, dy) < 5) return;
         g.moving = true;
-        const rect = win.getBoundingClientRect();
-        const pos = clampWindow(g.left + dx, g.top + dy, rect.width, rect.height);
+        const pos = clampWindow(g.left + dx, g.top + dy, g.width, g.height);
         win.style.left = pos.x + 'px';
         win.style.top = pos.y + 'px';
         win.style.transform = 'none';
@@ -810,7 +801,7 @@ function buildFloat() {
         const rect = button.getBoundingClientRect();
         floatPointer = {
             id: event.pointerId, x: event.clientX, y: event.clientY,
-            left: rect.left, top: rect.top, moving: false,
+            left: rect.left, top: rect.top, width: rect.width, height: rect.height, moving: false,
         };
         try { button.setPointerCapture(event.pointerId); } catch (_) {}
     });
@@ -822,7 +813,7 @@ function buildFloat() {
         if (!gesture.moving && Math.hypot(dx, dy) < 6) return;
         gesture.moving = true;
         const pos = clampFloat(gesture.left + dx, gesture.top + dy,
-            button.offsetWidth || 46, button.offsetHeight || 46);
+            gesture.width, gesture.height);
         button.style.left = pos.x + 'px';
         button.style.top = pos.y + 'px';
         button.style.right = 'auto';
