@@ -766,6 +766,8 @@ function updateFloat() {
     button.hidden = !data.showFloat;
     button.dataset.theme = data.theme;
     button.dataset.dock = data.floatDock || '';
+    button.title = data.floatDock ? '点击展开书本，之后可开关角色备注' : '点击开启/关闭角色备注（可拖动）';
+    button.setAttribute('aria-label', data.floatDock ? '展开悬浮书本' : '开启或关闭角色备注');
     const checkbox = document.getElementById('cs-float-toggle');
     if (checkbox && checkbox.checked !== data.showFloat) checkbox.checked = data.showFloat;
     if (button.hidden) return;
@@ -848,6 +850,21 @@ function buildFloat() {
             return;
         }
         skipFloatClick = false;
+        const data = state();
+        if (data.floatDock) {
+            // First tap on a half-hidden book only reveals it; no window state changes.
+            const bounds = viewportBounds();
+            const width = button.offsetWidth || 46;
+            const height = button.offsetHeight || 46;
+            const x = data.floatDock === 'left' ? 8 : bounds.width - width - 8;
+            const y = Number.isFinite(data.floatPosition?.y) ? data.floatPosition.y : bounds.height * 0.55;
+            data.floatPosition = clampFloat(x, y, width, height);
+            data.floatDock = null;
+            button.classList.add('cs-snapping');
+            updateFloat();
+            save();
+            return;
+        }
         toggleFloatPanel();
     });
     window.addEventListener('resize', queueViewportUpdate, { passive: true });
