@@ -1,0 +1,221 @@
+/* Character Shelf - scoped dark-blue-grey appearance */
+#character-shelf-root[hidden],
+#character-shelf-root [hidden] { display: none !important; }
+#character-shelf-root,
+#character-shelf-root * { box-sizing: border-box; }
+#character-shelf-root {
+    position: fixed; inset: 0; z-index: 2147482000;
+    font: 14px/1.5 system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+    color: #e2e9f2;
+}
+#character-shelf-root button,
+#character-shelf-root input,
+#character-shelf-root select,
+#character-shelf-root textarea { font: inherit; }
+#character-shelf-root button { cursor: pointer; }
+#character-shelf-root .cs-backdrop {
+    position: absolute; inset: 0; background: rgba(7, 11, 19, .74);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+#character-shelf-root .cs-window {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; overflow: hidden;
+    width: min(940px, calc(100vw - 30px));
+    height: min(830px, calc(100dvh - 32px));
+    border-radius: 16px; background: #252e3b;
+    border: 1px solid #46576d; box-shadow: 0 22px 75px #04081099;
+}
+#character-shelf-root .cs-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 12px; padding: 18px 22px 14px; border-bottom: 1px solid #3d4a5a;
+}
+#character-shelf-root .cs-eyebrow {
+    font-size: 10px; font-weight: 700; letter-spacing: .2em;
+    color: #9bb0c9; margin-bottom: 4px;
+}
+#character-shelf-root .cs-header h2 {
+    font-size: 21px; margin: 0; font-weight: 650; color: #f1f5fc;
+}
+#character-shelf-root .cs-header p {
+    font-size: 12px; color: #a9b8ca; margin: 5px 0 0;
+}
+#character-shelf-root .cs-close {
+    flex: 0 0 34px; width: 34px; height: 34px; line-height: 1;
+    border-radius: 8px; font-size: 22px; color: #dce5ef;
+    border: 1px solid #586c84; background: #39485a;
+}
+#character-shelf-root .cs-close:hover { background: #4a5b70; }
+#character-shelf-root .cs-toolbar {
+    display: flex; gap: 9px; align-items: center; padding: 13px 19px 7px;
+}
+#character-shelf-root #cs-search,
+#character-shelf-root #cs-sort,
+#character-shelf-root #cs-note-input {
+    color: #ebf0f7; background: #1a2532;
+    border: 1px solid #4c617b; border-radius: 8px; outline: none;
+}
+#character-shelf-root #cs-search { flex: 1 1 auto; min-width: 0; height: 39px; padding: 9px 12px; }
+#character-shelf-root #cs-search::placeholder,
+#character-shelf-root #cs-note-input::placeholder { color: #8b9fb7; }
+#character-shelf-root #cs-sort { flex: 0 1 200px; min-width: 0; height: 39px; padding: 0 8px; }
+#character-shelf-root #cs-search:focus,
+#character-shelf-root #cs-sort:focus,
+#character-shelf-root #cs-note-input:focus {
+    border-color: #a5bad4; box-shadow: 0 0 0 2px #9cb4cf22;
+}
+#character-shelf-root .cs-switch {
+    flex: 0 0 auto; display: flex; gap: 2px; padding: 3px;
+    border: 1px solid #415165; background: #1c2633; border-radius: 9px;
+}
+#character-shelf-root .cs-switch button {
+    padding: 5px 11px; border: 0; border-radius: 6px;
+    color: #b4c3d6; background: transparent; white-space: nowrap;
+}
+#character-shelf-root .cs-switch button[aria-pressed=true] {
+    background: #506580; color: #fff;
+}
+#character-shelf-root .cs-count {
+    padding: 4px 21px 12px; color: #95a8bf; font-size: 11px;
+}
+#character-shelf-root .cs-results {
+    min-height: 0; flex: 1 1 auto; overflow: auto;
+    overscroll-behavior: contain; padding: 0 18px 18px; align-content: start;
+}
+#character-shelf-root .cs-results.cs-list { display: flex; flex-direction: column; gap: 9px; }
+#character-shelf-root .cs-card {
+    position: relative; border-radius: 10px; border: 1px solid #455770;
+    background: #2b3748; transition: background .15s, border-color .15s;
+}
+#character-shelf-root .cs-card:hover {
+    background: #344359; border-color: #6e85a2;
+}
+#character-shelf-root .cs-card:focus-within { outline: 2px solid #a0bada; outline-offset: 1px; }
+#character-shelf-root .cs-open {
+    position: absolute; inset: 0; z-index: 1; height: 100%; width: 100%;
+    border: 0; padding: 0; background: transparent; border-radius: inherit;
+}
+#character-shelf-root .cs-edit {
+    position: absolute; top: 9px; right: 9px; z-index: 2;
+    display: grid; place-items: center;
+    width: 29px; height: 29px; border-radius: 7px;
+    background: #394b60; color: #d7e5f6; font-size: 16px;
+    border: 1px solid #647b99;
+}
+#character-shelf-root .cs-edit:hover { background: #516985; }
+#character-shelf-root .cs-card-list {
+    display: flex; gap: 14px; align-items: center;
+    min-height: 101px; padding: 9px 50px 9px 9px;
+}
+#character-shelf-root .cs-card-list .cs-avatar {
+    display: block; flex: 0 0 67px; width: 67px; height: 83px;
+    object-fit: cover; background: #182230; border-radius: 7px;
+}
+#character-shelf-root .cs-info { min-width: 0; }
+#character-shelf-root .cs-name {
+    font-size: 14px; font-weight: 650; color: #f0f5fd;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#character-shelf-root .cs-summary {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+    margin-top: 7px; font-size: 12.5px; line-height: 1.55;
+    color: #b3c2d4; white-space: pre-line; overflow-wrap: anywhere; overflow: hidden;
+}
+#character-shelf-root .cs-summary.cs-placeholder { font-style: italic; color: #8ea2b9; }
+#character-shelf-root .cs-results.cs-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 12px;
+}
+#character-shelf-root .cs-card-grid { min-width: 0; padding: 8px 8px 29px; align-self: start; }
+#character-shelf-root .cs-card-grid .cs-avatar {
+    width: 100%; display: block; aspect-ratio: 3 / 4;
+    object-fit: cover; border-radius: 7px; background: #172231;
+}
+#character-shelf-root .cs-card-grid .cs-info { padding-top: 8px; }
+#character-shelf-root .cs-card-grid .cs-name { font-size: 12px; text-align: center; }
+#character-shelf-root .cs-card-grid .cs-edit {
+    top: auto; bottom: 4px; right: 7px; width: 25px; height: 23px;
+    border: 0; background: transparent; color: #adc4df;
+}
+#character-shelf-root .cs-dot {
+    position: absolute; z-index: 2; top: 13px; left: 13px; pointer-events: none;
+    width: 7px; height: 7px; border-radius: 50%; background: #b8d2ee;
+    box-shadow: 0 0 0 2px #273547;
+}
+#character-shelf-root .cs-empty { margin: 46px 0; color: #b8c8db; text-align: center; }
+#character-shelf-root .cs-footer {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 11px 20px; color: #98abc0; border-top: 1px solid #415064; font-size: 11px;
+}
+#character-shelf-root .cs-footer > div { display: flex; gap: 8px; }
+#character-shelf-root .cs-footer button,
+#character-shelf-root .cs-editor-actions button {
+    border-radius: 7px; border: 1px solid #607791;
+    background: #3c4e65; color: #e0eaf6; font-size: 12px; padding: 7px 11px;
+}
+#character-shelf-root .cs-footer button:hover,
+#character-shelf-root .cs-editor-actions button:hover { background: #526b88; }
+#character-shelf-root .cs-editor-layer {
+    display: grid; place-items: center; position: absolute; inset: 0; z-index: 10;
+}
+#character-shelf-root .cs-editor-backdrop {
+    position: absolute; inset: 0; background: rgba(7, 13, 23, .81);
+}
+#character-shelf-root .cs-editor-window {
+    position: relative; z-index: 1; width: min(520px, calc(100vw - 42px));
+    padding: 20px; background: #293748; border-radius: 12px;
+    border: 1px solid #647e9c; box-shadow: 0 14px 52px #050a1499;
+}
+#character-shelf-root .cs-editor-title { font-size: 17px; font-weight: 650; color: #eef4fc; }
+#character-shelf-root .cs-editor-title span { font-weight: 400; font-size: 14px; color: #bed0e4; }
+#character-shelf-root .cs-editor-window p { font-size: 12px; color: #b1c3d7; margin: 10px 0 13px; }
+#character-shelf-root #cs-note-input {
+    display: block; width: 100%; padding: 11px; min-height: 138px;
+    max-height: 45dvh; resize: vertical; line-height: 1.6;
+}
+#character-shelf-root .cs-editor-actions {
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: 9px; margin-top: 12px;
+}
+#character-shelf-root .cs-editor-actions span {
+    margin-right: auto; color: #a6bad1; font-size: 11px;
+}
+#character-shelf-root .cs-editor-actions .cs-primary {
+    background: #607f9f; border-color: #86a1c1; color: #fff;
+}
+#character-shelf-root button:focus-visible {
+    outline: 2px solid #c3d8f2; outline-offset: 2px;
+}
+@media (max-width: 670px) {
+    #character-shelf-root .cs-window {
+        width: 100vw; height: 100dvh; border-radius: 0; border: 0;
+    }
+    #character-shelf-root .cs-header {
+        padding: max(14px, env(safe-area-inset-top)) 15px 12px;
+    }
+    #character-shelf-root .cs-header h2 { font-size: 19px; }
+    #character-shelf-root .cs-header p { font-size: 11px; }
+    #character-shelf-root .cs-toolbar {
+        display: grid; grid-template-columns: 1fr auto;
+        padding: 11px 12px 8px; gap: 8px;
+    }
+    #character-shelf-root #cs-search { grid-column: 1 / -1; width: 100%; }
+    #character-shelf-root #cs-sort { width: 100%; }
+    #character-shelf-root .cs-switch button { padding: 6px 8px; }
+    #character-shelf-root .cs-count { padding: 4px 13px 10px; }
+    #character-shelf-root .cs-results { padding: 0 11px 12px; }
+    #character-shelf-root .cs-results.cs-grid {
+        grid-template-columns: repeat(auto-fill, minmax(91px, 1fr)); gap: 9px;
+    }
+    #character-shelf-root .cs-card-list { gap: 10px; padding-right: 41px; min-height: 87px; }
+    #character-shelf-root .cs-card-list .cs-avatar {
+        width: 58px; height: 73px; flex-basis: 58px;
+    }
+    #character-shelf-root .cs-summary { -webkit-line-clamp: 2; font-size: 12px; }
+    #character-shelf-root .cs-name { font-size: 13px; }
+    #character-shelf-root .cs-edit { top: 6px; right: 6px; }
+    #character-shelf-root .cs-card-grid .cs-edit { top: auto; bottom: 4px; }
+    #character-shelf-root .cs-footer {
+        padding: 9px 12px max(10px, env(safe-area-inset-bottom));
+    }
+    #character-shelf-root .cs-footer > span { display: none; }
+    #character-shelf-root .cs-footer > div { width: 100%; justify-content: flex-end; }
+}
