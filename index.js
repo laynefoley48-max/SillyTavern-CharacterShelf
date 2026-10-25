@@ -26,6 +26,7 @@ let searchTimer = null;
 let layoutViewport = null;
 let inputFocus = false;
 let resizeFrame = 0;
+let editorAnchor = null;
 
 function state() {
     if (!extension_settings[KEY] || typeof extension_settings[KEY] !== 'object' || Array.isArray(extension_settings[KEY])) {
@@ -233,7 +234,7 @@ function render(anchor = null) {
     restoreAnchor(results, anchor);
     panelRendered = true;
 }
-function refreshEditedCard(key, previous, next) {
+function refreshEditedCard(key, previous, next, fixedAnchor = null) {
     const root = document.getElementById(ROOT_ID);
     if (!root || root.hidden) { panelNeedsRefresh = true; return; }
     const results = root.querySelector('#cs-results');
@@ -242,7 +243,7 @@ function refreshEditedCard(key, previous, next) {
     const before = matchesSearch(entry, previous) && passesFilter(previous);
     const after = matchesSearch(entry, next) && passesFilter(next);
     const cached = cardCache.get(key);
-    const anchor = listAnchor(results, key);
+    const anchor = fixedAnchor || listAnchor(results, key);
     if (cached) updateCardNote(cached, next, state().view);
     if (before !== after || (after && !cached)) {
         render(anchor);
@@ -282,6 +283,7 @@ function openEditor(key) {
     if (!entry) return;
     editing = key;
     const root = document.getElementById(ROOT_ID);
+    editorAnchor = listAnchor(root.querySelector('#cs-results'), key);
     root.querySelector('#cs-detail').classList.add('cs-under-editor');
     root.querySelector('#cs-editor-name').textContent = entry.character.name || '(未命名)';
     const field = root.querySelector('#cs-note-input');
@@ -307,12 +309,14 @@ function saveEditor() {
     if (value) notes[editing] = value;
     else delete notes[editing];
     save();
+    const anchor = editorAnchor;
     closeEditor();
+    editorAnchor = null;
     if (panelNeedsRefresh) {
         cardCache.clear();
-        render(listAnchor(document.getElementById('cs-results'), key));
+        render(anchor);
         panelNeedsRefresh = false;
-    } else refreshEditedCard(key, previous, value);
+    } else refreshEditedCard(key, previous, value, anchor);
     if (detailKey) updateDetails();
 }
 function viewportBounds() {
