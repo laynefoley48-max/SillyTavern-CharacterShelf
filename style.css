@@ -541,6 +541,10 @@
 /* Existing TT/SillyTavern inline drawer behavior is provided by the host. */
 #cs-settings-panel {
     display: block;
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
     margin: 4px 0 8px;
     padding: 0;
     border: 0;
@@ -548,11 +552,16 @@
     background: transparent;
     color: var(--SmartThemeBodyColor, #eee);
 }
-#cs-settings-panel .inline-drawer { width: 100%; }
+#cs-settings-panel .inline-drawer {
+    min-width: 0;
+    max-width: 100%;
+}
 #cs-settings-panel .inline-drawer-header {
     cursor: pointer;
 }
 #cs-settings-panel .cs-settings-content {
+    min-width: 0;
+    max-width: 100%;
     padding: 7px 8px 10px;
 }
 #cs-settings-panel .cs-settings-open {
@@ -871,4 +880,135 @@
 /* Transient compositor hint only while dragging; release it on pointerup/cancel. */
 #character-shelf-root[data-fullscreen="false"] .cs-window.cs-dragging {
     will-change: transform;
+}
+
+
+/* v0.7.1: small in-drawer help and explicitly requested version checking. */
+#cs-settings-panel .cs-info-toggle {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    border-top: 1px solid var(--SmartThemeBorderColor, #8885);
+    border-radius: 0;
+    margin-top: 9px;
+    padding: 10px 2px 8px;
+    background: transparent;
+    color: var(--SmartThemeBodyColor, #eee);
+    text-align: left;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+#cs-settings-panel .cs-info-toggle > .fa-circle-exclamation {
+    flex: 0 0 auto;
+    color: var(--SmartThemeBodyColor, #eee);
+    opacity: .75;
+}
+#cs-settings-panel .cs-info-toggle > span {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+#cs-settings-panel .cs-info-chevron {
+    margin-left: auto;
+    font-size: 10px;
+    opacity: .65;
+    transition: transform .16s ease-out;
+}
+#cs-settings-panel .cs-info-toggle[aria-expanded="true"] .cs-info-chevron {
+    transform: rotate(180deg);
+}
+#cs-settings-panel .cs-info-panel {
+    min-width: 0;
+    padding: 5px 7px 9px;
+    font-size: 12px;
+    line-height: 1.55;
+}
+#cs-settings-panel .cs-info-panel[hidden],
+#cs-settings-panel .cs-update-status[hidden] {
+    display: none !important;
+}
+#cs-settings-panel .cs-info-text {
+    margin: 4px 0 8px;
+    color: var(--SmartThemeBodyColor, #eee);
+    opacity: .85;
+}
+#cs-settings-panel .cs-info-subtitle {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 650;
+    margin: 11px 0 5px;
+}
+#cs-settings-panel .cs-changelog {
+    min-width: 0;
+    max-height: 210px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 8px;
+    border: 1px solid var(--SmartThemeBorderColor, #8885);
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+#cs-settings-panel .cs-changelog-version {
+    font-size: 11px;
+    font-weight: 700;
+    margin: 8px 0 4px;
+}
+#cs-settings-panel .cs-changelog-version:first-child { margin-top: 0; }
+#cs-settings-panel .cs-changelog-line { margin: 3px 0; }
+#cs-settings-panel .cs-changelog-link {
+    display: inline-block;
+    margin: 7px 0 0;
+    font-size: 11px;
+    color: var(--SmartThemeBodyColor, #eee);
+    opacity: .8;
+    text-decoration: underline;
+}
+#cs-settings-panel .cs-version-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+    border-top: 1px solid var(--SmartThemeBorderColor, #8885);
+    padding: 10px 0 3px;
+}
+#cs-settings-panel .cs-version-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 11px;
+    color: var(--SmartThemeBodyColor, #eee);
+    opacity: .8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#cs-settings-panel .cs-check-update {
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 5px 9px;
+    font-size: 11px;
+    white-space: nowrap;
+}
+#cs-settings-panel .cs-check-update:disabled { opacity: .6; }
+#cs-settings-panel .cs-update-status {
+    padding: 3px 0 1px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--SmartThemeBodyColor, #eee);
+    opacity: .8;
+    overflow-wrap: anywhere;
+}
+#cs-settings-panel .cs-update-status[data-kind="new"] {
+    opacity: 1;
+    font-weight: 650;
+}
+@media (prefers-reduced-motion: reduce) {
+    #cs-settings-panel .cs-info-chevron { transition: none; }
 }
