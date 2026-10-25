@@ -91,14 +91,9 @@
     display: flex; justify-content: space-between; align-items: flex-start;
     gap: 12px; padding: 17px 20px 13px; border-bottom: 1px solid var(--cs-border);
 }
-#character-shelf-root .cs-eyebrow {
-    font-size: 10px; font-weight: 650; letter-spacing: .17em;
-    color: var(--cs-faint); margin-bottom: 3px;
-}
 #character-shelf-root .cs-header h2 {
     font-size: 20px; line-height: 1.3; margin: 0; font-weight: 650; color: var(--cs-text);
 }
-#character-shelf-root .cs-header p { font-size: 12px; margin: 5px 0 0; color: var(--cs-muted); }
 #character-shelf-root .cs-close,
 #character-shelf-root #cs-detail-close {
     flex: 0 0 32px; width: 32px; height: 32px;
@@ -113,18 +108,16 @@
 }
 #character-shelf-root #cs-search,
 #character-shelf-root #cs-sort,
-#character-shelf-root #cs-theme,
 #character-shelf-root #cs-note-input {
     color: var(--cs-text); background: var(--cs-control);
     border: 1px solid var(--cs-border); border-radius: 8px; outline: none;
 }
-#character-shelf-root :is(#cs-search, #cs-sort, #cs-theme) { height: 37px; }
+#character-shelf-root :is(#cs-search, #cs-sort) { height: 37px; }
 #character-shelf-root #cs-search { flex: 1 1 auto; min-width: 0; padding: 7px 11px; }
 #character-shelf-root #cs-search::placeholder,
 #character-shelf-root #cs-note-input::placeholder { color: var(--cs-faint); }
 #character-shelf-root #cs-sort { flex: 0 1 180px; min-width: 0; padding: 0 7px; }
-#character-shelf-root #cs-theme { flex: 0 0 110px; min-width: 0; padding: 0 7px; }
-#character-shelf-root :is(#cs-search, #cs-sort, #cs-theme, #cs-note-input):focus {
+#character-shelf-root :is(#cs-search, #cs-sort, #cs-note-input):focus {
     border-color: var(--cs-text); outline: 1px solid var(--cs-border);
 }
 #character-shelf-root .cs-switch {
@@ -138,9 +131,6 @@
 }
 #character-shelf-root .cs-switch button[aria-pressed=true] {
     background: var(--cs-accent); color: var(--cs-accent-text);
-}
-#character-shelf-root .cs-count {
-    padding: 3px 19px 11px; color: var(--cs-faint); font-size: 11px;
 }
 #character-shelf-root .cs-results {
     flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
@@ -205,19 +195,13 @@
     background: var(--cs-text); box-shadow: 0 0 0 2px var(--cs-panel);
 }
 #character-shelf-root .cs-empty { text-align: center; margin: 45px 0; color: var(--cs-muted); }
-#character-shelf-root .cs-footer {
-    display: flex; justify-content: space-between; align-items: center; gap: 9px;
-    padding: 10px 18px; color: var(--cs-faint); border-top: 1px solid var(--cs-border); font-size: 11px;
-}
-#character-shelf-root .cs-footer > div { display: flex; gap: 7px; }
-#character-shelf-root .cs-footer button,
 #character-shelf-root .cs-detail-actions button,
 #character-shelf-root .cs-editor-actions button {
     border-radius: 7px; border: 1px solid var(--cs-border);
     background: var(--cs-control); color: var(--cs-text); font-size: 12px;
     padding: 7px 12px;
 }
-#character-shelf-root :is(.cs-footer, .cs-detail-actions, .cs-editor-actions) button:hover {
+#character-shelf-root :is(.cs-detail-actions, .cs-editor-actions) button:hover {
     background: var(--cs-control-hover);
 }
 #character-shelf-root :is(.cs-detail-actions, .cs-editor-actions) .cs-primary {
@@ -282,24 +266,18 @@
     outline: 2px solid var(--cs-text); outline-offset: 2px;
 }
 @media (max-width: 700px) {
-    #character-shelf-root .cs-window {
-        width: 100vw; height: 100dvh; border-radius: 0; border: 0;
-    }
     #character-shelf-root .cs-header {
         padding: max(12px, env(safe-area-inset-top)) 14px 11px;
     }
     #character-shelf-root .cs-header h2 { font-size: 19px; }
-    #character-shelf-root .cs-header p { font-size: 11px; }
     #character-shelf-root .cs-toolbar {
         display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr);
         padding: 10px 12px 7px; gap: 7px;
     }
     #character-shelf-root #cs-search { grid-column: 1 / -1; width: 100%; }
-    #character-shelf-root #cs-sort,
-    #character-shelf-root #cs-theme { width: 100%; flex: auto; }
+    #character-shelf-root #cs-sort { width: 100%; flex: auto; }
     #character-shelf-root .cs-switch { grid-column: 1 / -1; justify-content: center; }
     #character-shelf-root .cs-switch button { flex: 1; }
-    #character-shelf-root .cs-count { padding: 4px 13px 10px; }
     #character-shelf-root .cs-results { padding: 0 11px 12px; }
     #character-shelf-root .cs-results.cs-grid {
         grid-template-columns: repeat(auto-fill, minmax(49px, 61px)); gap: 7px;
@@ -310,11 +288,6 @@
     #character-shelf-root .cs-card-list .cs-avatar { width: 42px; height: 54px; }
     #character-shelf-root .cs-summary { -webkit-line-clamp: 2; font-size: 12px; }
     #character-shelf-root .cs-tag { max-width: 115px; font-size: 10.5px; }
-    #character-shelf-root .cs-footer {
-        padding: 9px 12px max(9px, env(safe-area-inset-bottom));
-    }
-    #character-shelf-root .cs-footer > span { display: none; }
-    #character-shelf-root .cs-footer > div { width: 100%; justify-content: flex-end; }
 }
 
 
@@ -330,18 +303,6 @@
     border: 1px solid var(--SmartThemeBorderColor, #7775);
     background: color-mix(in srgb, var(--SmartThemeBlurTintColor, #2a2a2a) 86%, var(--SmartThemeBodyColor, #eee) 14%);
     color: var(--SmartThemeBodyColor, #eee);
-}
-#cs-settings-panel .cs-settings-title {
-    margin: 0;
-    font-size: calc(var(--mainFontSize, 15px) * 1.04);
-    font-weight: 650;
-}
-#cs-settings-panel .cs-settings-description {
-    color: var(--SmartThemeBodyColor, #eee);
-    opacity: .78;
-    font-size: 12px;
-    line-height: 1.5;
-    margin: 0;
 }
 #cs-settings-panel .cs-settings-open {
     width: 100%;
