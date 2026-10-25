@@ -6,6 +6,6 @@
   "js": "index.js",
   "css": "style.css",
   "author": "ChatGPT",
-  "version": "0.5.0",
-  "description": "Private character notes in a movable, responsive, non-modal compact window with optional fullscreen and floating-book show/hide; search, filters and JSON backup."
+  "version": "0.6.0",
+  "description": "Movable lightweight character notes browser with half-hidden edge-docking book, stable mobile keyboard editing, anchored list updates, three filters and JSON backup."
 }
