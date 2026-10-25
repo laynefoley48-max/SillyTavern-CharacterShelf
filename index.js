@@ -308,10 +308,16 @@ function saveEditor() {
     if (detailKey) updateDetails();
 }
 function viewportBounds() {
-    return {
-        width: Math.max(1, Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth)),
-        height: Math.max(1, Math.min(window.innerHeight, window.visualViewport?.height || window.innerHeight)),
-    };
+    const bounds = layoutViewport || { width: window.innerWidth, height: window.innerHeight };
+    return { width: Math.max(1, bounds.width), height: Math.max(1, bounds.height) };
+}
+function setPanelBaseHeight(root) {
+    const height = viewportBounds().height;
+    const size = Math.max(155, Math.min(545, height * 0.68, height - 16));
+    const value = Math.round(size) + 'px';
+    if (root.style.getPropertyValue('--cs-panel-height') !== value) {
+        root.style.setProperty('--cs-panel-height', value);
+    }
 }
 function clampWindow(left, top, width, height) {
     const viewport = viewportBounds();
@@ -323,34 +329,52 @@ function clampWindow(left, top, width, height) {
 }
 function positionPanel() {
     const root = document.getElementById(ROOT_ID);
-    if (!root) return;
+    if (!root || root.hidden) return;
     const win = root.querySelector('.cs-window');
-    root.style.setProperty('--cs-visible-height', viewportBounds().height + 'px');
     if (state().fullscreen) {
         win.style.left = '';
         win.style.top = '';
         win.style.transform = '';
         return;
     }
+    const size = viewportBounds();
+    const rect = win.getBoundingClientRect();
     const saved = state().panelPosition;
-    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
-        const rect = win.getBoundingClientRect();
-        const pos = clampWindow(saved.x, saved.y, rect.width, rect.height);
-        win.style.left = pos.x + 'px';
-        win.style.top = pos.y + 'px';
-        win.style.transform = 'none';
-    } else {
-        win.style.left = '';
-        win.style.top = '';
-        win.style.transform = '';
-        const rect = win.getBoundingClientRect();
-        const pos = clampWindow(rect.left, rect.top, rect.width, rect.height);
-        if (Math.abs(rect.left - pos.x) > 1 || Math.abs(rect.top - pos.y) > 1) {
-            win.style.left = pos.x + 'px';
-            win.style.top = pos.y + 'px';
-            win.style.transform = 'none';
+    const x = saved && Number.isFinite(saved.x) ? saved.x : (size.width - rect.width) / 2;
+    const y = saved && Number.isFinite(saved.y) ? saved.y : size.height * 0.09;
+    const point = clampWindow(x, y, rect.width, rect.height);
+    let top = point.y;
+    if (inputFocus) {
+        const viewport = window.visualViewport;
+        const availableBottom = (viewport?.offsetTop || 0) + (viewport?.height || window.innerHeight) - 10;
+        if (availableBottom < size.height - 95) {
+            const input = root.querySelector('#cs-note-input');
+            if (input && !root.querySelector('#cs-editor').hidden) {
+                const relativeBottom = input.getBoundingClientRect().bottom - rect.top;
+                top = Math.max(8, point.y - Math.max(0, point.y + relativeBottom - availableBottom));
+            }
         }
     }
+    const nextLeft = point.x + 'px', nextTop = top + 'px';
+    if (win.style.left !== nextLeft) win.style.left = nextLeft;
+    if (win.style.top !== nextTop) win.style.top = nextTop;
+    if (win.style.transform !== 'none') win.style.transform = 'none';
+}
+function queueViewportUpdate() {
+    if (resizeFrame) return;
+    resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = 0;
+        const current = { width: window.innerWidth, height: window.innerHeight };
+        if (!layoutViewport) layoutViewport = current;
+        const rotated = Math.abs(layoutViewport.width - current.width) > 24;
+        if (rotated || (!inputFocus && current.height > layoutViewport.height + 30)) {
+            layoutViewport = current;
+            const root = document.getElementById(ROOT_ID);
+            if (root) setPanelBaseHeight(root);
+        }
+        updateFloat();
+        positionPanel();
+    });
 }
 function updatePanelMode() {
     const root = document.getElementById(ROOT_ID);
@@ -384,7 +408,7 @@ function closePanel() {
     if (!root || root.hidden) return;
     if (root.contains(document.activeElement)) panelLastFocus = document.activeElement;
     root.hidden = true;
-    if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; }
+    if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; panelNeedsRefresh = true; }
     if (priorFocus?.isConnected && !root.contains(priorFocus)) priorFocus.focus({ preventScroll: true });
 }
 function toggleFloatPanel() {
@@ -594,7 +618,7 @@ function createUi() {
         root.querySelector('#cs-length').textContent = e.target.value.length + ' 字';
     });
     const editorInput = root.querySelector('#cs-note-input');
-    editorInput.addEventListener('focus', () => { inputFocus = true; });
+    editorInput.addEventListener('focus', () => { inputFocus = true; queueViewportUpdate(); });
     editorInput.addEventListener('blur', () => { inputFocus = false; queueViewportUpdate(); });
     const importInput = root.querySelector('#cs-import-file');
     importInput.addEventListener('change', async e => {
