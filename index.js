@@ -17,13 +17,13 @@ let priorFocus = null;
 
 function state() {
     if (!extension_settings[KEY] || typeof extension_settings[KEY] !== 'object' || Array.isArray(extension_settings[KEY])) {
-        extension_settings[KEY] = { notes: {}, view: 'list', sort: 'newest', theme: 'tavern' };
+        extension_settings[KEY] = { notes: {}, view: 'list', sort: 'newest', theme: 'gray' };
     }
     const data = extension_settings[KEY];
     if (!data.notes || typeof data.notes !== 'object' || Array.isArray(data.notes)) data.notes = {};
     if (data.view !== 'grid' && data.view !== 'list') data.view = 'list';
     if (!['newest', 'oldest', 'az', 'za'].includes(data.sort)) data.sort = 'newest';
-    if (!['tavern', 'day', 'gray'].includes(data.theme)) data.theme = 'tavern';
+    if (!['tavern', 'day', 'gray'].includes(data.theme)) data.theme = 'gray';
     return data;
 }
 function save() { saveSettingsDebounced(); }
