@@ -768,6 +768,67 @@ function launcher() {
     button.addEventListener('click', openPanel);
     container.append(button);
 }
+
+const RELEASE_SOURCE = 'https://raw.githubusercontent.com/laynefoley48-max/SillyTavern-CharacterShelf/main';
+const CHANGELOG_PAGE = 'https://github.com/laynefoley48-max/SillyTavern-CharacterShelf/blob/main/CHANGELOG.md';
+let localVersionRequest = null;
+
+async function installedVersion() {
+    if (!localVersionRequest) {
+        // Module-relative path works even when the extension directory was renamed at installation.
+        const localUrl = new URL('./manifest.json', import.meta.url);
+        localVersionRequest = fetch(localUrl.href, { cache: 'no-store' })
+            .then(response => {
+                if (!response.ok) throw new Error('无法读取本地版本');
+                return response.json();
+            })
+            .then(manifest => {
+                if (typeof manifest?.version !== 'string' || !manifest.version.trim()) {
+                    throw new Error('本地版本信息缺失');
+                }
+                return manifest.version.trim();
+            })
+            .catch(error => {
+                localVersionRequest = null;
+                throw error;
+            });
+    }
+    return localVersionRequest;
+}
+function compareShelfVersions(a, b) {
+    const parts = value => String(value).trim().replace(/^v/i, '').split('.').map(part => Number.parseInt(part, 10) || 0);
+    const left = parts(a), right = parts(b);
+    for (let i = 0; i < Math.max(left.length, right.length); i++) {
+        const difference = (left[i] || 0) - (right[i] || 0);
+        if (difference) return Math.sign(difference);
+    }
+    return 0;
+}
+async function remoteShelfFile(name) {
+    // Only fetched from an explicit click; no polling, startup checks, or background timers.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    try {
+        const response = await fetch(RELEASE_SOURCE + '/' + name, {
+            cache: 'no-store', signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('无法连接 GitHub');
+        return name.endsWith('.json') ? response.json() : response.text();
+    } finally {
+        clearTimeout(timer);
+    }
+}
+function renderShelfChangelog(target, raw) {
+    target.replaceChildren();
+    for (const line of String(raw).replace(/\r/g, '').slice(0, 40000).split('\n')) {
+        const value = line.trim();
+        if (!value || value.startsWith('# ') || value === '---') continue;
+        if (value.startsWith('## ')) target.append(node('h4', 'cs-changelog-version', value.slice(3)));
+        else if (value.startsWith('- ')) target.append(node('p', 'cs-changelog-line', '• ' + value.slice(2)));
+        else target.append(node('p', 'cs-changelog-line', value));
+    }
+}
+
 function buildSettings() {
     if (document.getElementById('cs-settings-panel')) return;
     const container = document.getElementById('extensions_settings2')
@@ -813,7 +874,88 @@ function buildSettings() {
     restore.type = 'button';
     restore.addEventListener('click', () => document.getElementById('cs-import-file')?.click());
     actions.append(backup, restore);
-    content.append(open, row, actions);
+
+    // Compact help row; text stays visible beside the exclamation icon.
+    const infoToggle = node('button', 'cs-info-toggle');
+    infoToggle.type = 'button';
+    infoToggle.setAttribute('aria-expanded', 'false');
+    const infoIcon = node('i', 'fa-solid fa-circle-exclamation');
+    infoIcon.setAttribute('aria-hidden', 'true');
+    const infoLabel = node('span', '', '介绍及更新日志');
+    const infoChevron = node('i', 'fa-solid fa-chevron-down cs-info-chevron');
+    infoChevron.setAttribute('aria-hidden', 'true');
+    infoToggle.append(infoIcon, infoLabel, infoChevron);
+
+    const infoPanel = node('div', 'cs-info-panel');
+    infoPanel.hidden = true;
+    infoPanel.append(
+        node('p', 'cs-info-text', '为酒馆角色卡添加私人备注，支持搜索、筛选、排序、分页、列表或头像浏览，以及备注备份与恢复。'),
+        node('p', 'cs-info-text', '支持可拖动小窗与悬浮书本；备注独立保存，不修改角色卡，也不会发送给 AI。'),
+        node('h3', 'cs-info-subtitle', '更新日志'),
+    );
+    const changelog = node('div', 'cs-changelog', '展开后读取在线更新日志…');
+    changelog.setAttribute('aria-live', 'polite');
+    const more = node('a', 'cs-changelog-link', '在 GitHub 查看完整日志');
+    more.href = CHANGELOG_PAGE;
+    more.target = '_blank';
+    more.rel = 'noopener noreferrer';
+    infoPanel.append(changelog, more);
+    let changelogLoaded = false;
+    infoToggle.addEventListener('click', async () => {
+        infoPanel.hidden = !infoPanel.hidden;
+        infoToggle.setAttribute('aria-expanded', String(!infoPanel.hidden));
+        if (infoPanel.hidden || changelogLoaded) return;
+        changelog.textContent = '正在读取更新日志…';
+        try {
+            const raw = await remoteShelfFile('CHANGELOG.md');
+            renderShelfChangelog(changelog, raw);
+            changelogLoaded = true;
+        } catch (_) {
+            changelog.textContent = '暂时无法读取在线更新日志，可点击下方链接查看。';
+        }
+    });
+
+    const versionRow = node('div', 'cs-version-row');
+    const versionText = node('span', 'cs-version-text', '当前版本：读取中…');
+    const check = node('button', 'menu_button cs-check-update', '检查更新');
+    check.type = 'button';
+    const updateStatus = node('div', 'cs-update-status');
+    updateStatus.hidden = true;
+    const status = (message, kind = '') => {
+        updateStatus.hidden = false;
+        updateStatus.textContent = message;
+        updateStatus.dataset.kind = kind;
+    };
+    installedVersion().then(version => {
+        versionText.textContent = '当前版本：v' + version.replace(/^v/i, '');
+    }).catch(() => {
+        versionText.textContent = '当前版本：未知';
+    });
+    check.addEventListener('click', async () => {
+        check.disabled = true;
+        check.textContent = '检测中…';
+        updateStatus.hidden = true;
+        try {
+            const [localVersion, latest] = await Promise.all([
+                installedVersion(), remoteShelfFile('manifest.json'),
+            ]);
+            if (typeof latest?.version !== 'string' || !latest.version.trim()) {
+                throw new Error('无法读取最新版本号');
+            }
+            const newer = compareShelfVersions(latest.version, localVersion) > 0;
+            check.textContent = newer ? '发现新版本' : '已是最新';
+            status(newer
+                ? '最新版本：v' + latest.version.replace(/^v/i, '') + '，可在「管理扩展」中更新。'
+                : '当前已是最新版本。', newer ? 'new' : 'current');
+        } catch (_) {
+            check.textContent = '检查更新';
+            status('检查失败，请检查网络后重试。', 'error');
+        } finally {
+            check.disabled = false;
+        }
+    });
+    versionRow.append(versionText, check);
+    content.append(open, row, actions, infoToggle, infoPanel, versionRow, updateStatus);
     drawer.append(header, content);
     section.append(drawer);
     container.prepend(section);
