@@ -424,3 +424,240 @@
     outline: 2px solid var(--cs-float-icon);
     outline-offset: 3px;
 }
+
+
+/* v0.4.0 — Dense browser chrome. Leave the majority of height to the character list. */
+#character-shelf-root .cs-header {
+    padding: 4px 12px 4px 15px;
+    min-height: 42px;
+    align-items: center;
+    gap: 8px;
+}
+#character-shelf-root .cs-header h2 {
+    font-size: 15px;
+    font-weight: 650;
+    margin: 0;
+    line-height: 1.25;
+}
+#character-shelf-root .cs-head-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+#character-shelf-root .cs-icon-button {
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    font-size: 14px;
+    background: var(--cs-control);
+    color: var(--cs-text);
+    border: 1px solid var(--cs-border);
+    border-radius: 7px;
+    cursor: pointer;
+}
+#character-shelf-root .cs-icon-button:hover { background: var(--cs-control-hover); }
+#character-shelf-root .cs-close {
+    flex-basis: 30px;
+    width: 30px;
+    height: 30px;
+    font-size: 19px;
+}
+#character-shelf-root .cs-toolbar {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px 6px;
+}
+#character-shelf-root #cs-search,
+#character-shelf-root #cs-sort {
+    height: 32px;
+    min-height: 32px;
+    border-radius: 7px;
+    font-size: 12px;
+}
+#character-shelf-root #cs-search {
+    flex: 1 1 160px;
+    min-width: 65px;
+    width: auto;
+    padding: 5px 8px;
+}
+#character-shelf-root #cs-sort {
+    flex: 0 1 126px;
+    min-width: 100px;
+    width: auto;
+    padding: 0 5px;
+}
+#character-shelf-root .cs-switch {
+    flex: 0 0 auto;
+    align-items: center;
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 7px;
+}
+#character-shelf-root .cs-switch button {
+    width: 28px;
+    height: 26px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+    flex: 0 0 28px;
+    border-radius: 5px;
+}
+#character-shelf-root .cs-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap: 6px;
+    padding: 0 12px 8px;
+}
+#character-shelf-root .cs-filters button {
+    min-width: 0;
+    min-height: 30px;
+    padding: 4px 4px;
+    border: 1px solid var(--cs-border);
+    border-radius: 7px;
+    background: transparent;
+    color: var(--cs-muted);
+    font-size: 11.5px;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+#character-shelf-root .cs-filters button[aria-pressed="true"] {
+    background: var(--cs-accent);
+    color: var(--cs-accent-text);
+}
+#character-shelf-root .cs-filters button:hover {
+    border-color: var(--cs-text);
+}
+#character-shelf-root .cs-results {
+    padding: 0 12px 11px;
+    min-height: 0;
+}
+#character-shelf-root .cs-results.cs-list { gap: 7px; }
+#character-shelf-root .cs-results.cs-grid { gap: 7px; }
+/* Full set of native tags, single-line chips. Long labels never disappear:
+   they use the entire available row and ellipsis only beyond the modal width. */
+#character-shelf-root #cs-detail-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    min-width: 0;
+    max-width: 100%;
+    margin: 0;
+    padding: 0 0 11px;
+    border-bottom: 1px solid var(--cs-border);
+    overflow: visible;
+}
+#character-shelf-root #cs-detail-tags .cs-tag {
+    display: inline-block;
+    flex: 0 1 auto;
+    max-width: 100%;
+    min-width: 0;
+    padding: 2px 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+    word-break: normal;
+}
+#character-shelf-root .cs-detail-actions {
+    position: sticky;
+    bottom: -19px;
+    z-index: 1;
+    background: var(--cs-panel);
+    padding: 12px 0 1px;
+}
+
+/* Existing TT/SillyTavern inline drawer behavior is provided by the host. */
+#cs-settings-panel {
+    display: block;
+    margin: 4px 0 8px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--SmartThemeBodyColor, #eee);
+}
+#cs-settings-panel .inline-drawer { width: 100%; }
+#cs-settings-panel .inline-drawer-header {
+    cursor: pointer;
+}
+#cs-settings-panel .cs-settings-content {
+    padding: 7px 8px 10px;
+}
+#cs-settings-panel .cs-settings-open {
+    width: 100%;
+    min-height: 33px;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+#cs-settings-panel .cs-settings-toggle {
+    margin: 8px 0 12px;
+}
+#cs-settings-panel .cs-settings-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+#cs-settings-panel .cs-settings-actions button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 0;
+    min-height: 31px;
+    font-size: 12px;
+}
+
+@media (max-width: 700px) {
+    #character-shelf-root .cs-header {
+        padding: max(5px, env(safe-area-inset-top)) 11px 5px;
+        min-height: 42px;
+    }
+    #character-shelf-root .cs-toolbar {
+        display: flex;
+        flex-flow: row nowrap;
+        padding: 6px 9px;
+        gap: 5px;
+    }
+    #character-shelf-root #cs-search {
+        grid-column: auto;
+        flex: 1 1 auto;
+        min-width: 56px;
+        width: auto;
+        font-size: 11.5px;
+    }
+    #character-shelf-root #cs-sort {
+        grid-column: auto;
+        flex: 0 1 110px;
+        min-width: 93px;
+        width: auto;
+        font-size: 11.5px;
+        padding-left: 4px;
+        padding-right: 4px;
+    }
+    #character-shelf-root .cs-switch {
+        grid-column: auto;
+        flex: 0 0 auto;
+        justify-content: initial;
+    }
+    #character-shelf-root .cs-switch button {
+        flex: 0 0 24px;
+        width: 24px;
+        font-size: 12px;
+    }
+    #character-shelf-root .cs-filters {
+        padding: 0 9px 7px;
+        gap: 5px;
+    }
+    #character-shelf-root .cs-filters button {
+        font-size: 11px;
+        min-height: 28px;
+    }
+    #character-shelf-root .cs-results { padding: 0 9px 10px; }
+}
