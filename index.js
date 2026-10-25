@@ -19,6 +19,9 @@ let skipFloatClick = false;
 let floatPeekSide = null;
 let floatPeekTimer = null;
 let panelPointer = null;
+let panelDragFrame = 0;
+let pageIndex = 0;
+const PAGE_SIZES = [20, 30, 50, 100];
 let panelLastFocus = null;
 let panelRendered = false;
 let panelNeedsRefresh = false;
@@ -43,6 +46,8 @@ function state() {
     if (!['all', 'noted', 'empty'].includes(data.filter)) data.filter = 'all';
     if (typeof data.showFloat !== 'boolean') data.showFloat = false;
     if (typeof data.fullscreen !== 'boolean') data.fullscreen = false;
+    if (!PAGE_SIZES.includes(Number(data.pageSize))) data.pageSize = 30;
+    else data.pageSize = Number(data.pageSize);
     if (!['left', 'right'].includes(data.floatDock)) data.floatDock = null;
     return data;
 }
@@ -192,7 +197,7 @@ function restoreAnchor(results, anchor) {
     const expected = card.dataset.avatarKey === anchor.key ? anchor.offset : anchor.fallbackOffset;
     results.scrollTop += card.getBoundingClientRect().top - results.getBoundingClientRect().top - expected;
 }
-function render(anchor = null) {
+function render(anchor = null, resetScroll = false) {
     const root = document.getElementById(ROOT_ID);
     if (!root || root.hidden) return;
     const data = state();
@@ -201,7 +206,28 @@ function render(anchor = null) {
     const matched = all.filter(entry => matchesSearch(entry));
     const shown = matched.filter(entry => passesFilter(noteFor(entry.key)));
     shown.sort(sortItems);
-    const scroll = results.scrollTop;
+    const pageSize = data.pageSize;
+    const pages = Math.max(1, Math.ceil(shown.length / pageSize));
+    pageIndex = Math.max(0, Math.min(pageIndex, pages - 1));
+    const visible = shown.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
+    const scroll = resetScroll ? 0 : results.scrollTop;
+    const pageSelect = root.querySelector('#cs-page-jump');
+    const perPage = root.querySelector('#cs-page-size');
+    perPage.value = String(pageSize);
+    if (Number(pageSelect.dataset.pages) !== pages) {
+        const options = document.createDocumentFragment();
+        for (let i = 0; i < pages; i++) {
+            const option = node('option', '', (i + 1) + ' / ' + pages);
+            option.value = String(i);
+            options.append(option);
+        }
+        pageSelect.replaceChildren(options);
+        pageSelect.dataset.pages = String(pages);
+    }
+    pageSelect.value = String(pageIndex);
+    root.querySelector('#cs-page-prev').disabled = pageIndex === 0;
+    root.querySelector('#cs-page-next').disabled = pageIndex >= pages - 1;
+    root.querySelector('#cs-page-count').textContent = '共 ' + shown.length + ' 张';
     if (cachedView !== data.view) {
         cachedView = data.view;
         cardCache.clear();
@@ -218,12 +244,16 @@ function render(anchor = null) {
     root.querySelector('#cs-view-list').setAttribute('aria-pressed', String(data.view === 'list'));
     root.querySelector('#cs-view-grid').setAttribute('aria-pressed', String(data.view === 'grid'));
     if (!shown.length) {
+        cardCache.clear();
         results.replaceChildren(node('p', 'cs-empty', query.trim() ? '没有匹配的角色或备注' : '当前筛选没有角色卡'));
         panelRendered = true;
         return;
     }
+    // Limit retained card/thumbnail nodes to the current page, even after browsing 500+ cards.
+    const visibleKeys = new Set(visible.map(item => item.key));
+    for (const key of cardCache.keys()) if (!visibleKeys.has(key)) cardCache.delete(key);
     const fragment = document.createDocumentFragment();
-    for (const entry of shown) {
+    for (const entry of visible) {
         let card = cardCache.get(entry.key);
         if (!card) {
             card = makeCard(entry, data.view);
@@ -233,7 +263,7 @@ function render(anchor = null) {
     }
     results.replaceChildren(fragment);
     results.scrollTop = scroll;
-    restoreAnchor(results, anchor);
+    if (!resetScroll) restoreAnchor(results, anchor);
     panelRendered = true;
 }
 function refreshEditedCard(key, previous, next, fixedAnchor = null) {
@@ -432,14 +462,31 @@ function toggleFloatPanel() {
 }
 function enablePanelDrag(root) {
     const win = root.querySelector('.cs-window');
+    const renderDrag = () => {
+        panelDragFrame = 0;
+        const gesture = panelPointer;
+        if (!gesture || !gesture.moving) return;
+        // Only a compositor transform changes while the finger is moving.
+        const position = clampWindow(gesture.nextX, gesture.nextY, gesture.width, gesture.height);
+        gesture.visualX = position.x;
+        gesture.visualY = position.y;
+        win.style.transform = 'translate3d(' + (position.x - gesture.left) + 'px, '
+            + (position.y - gesture.top) + 'px, 0)';
+    };
     root.addEventListener('pointerdown', event => {
         if (state().fullscreen || event.button !== 0 || panelPointer) return;
         const handle = event.target.closest('.cs-header, .cs-detail-header, .cs-editor-title');
         if (!handle || event.target.closest('button, input, select, textarea, a')) return;
         const rect = win.getBoundingClientRect();
-        panelPointer = { id: event.pointerId, handle,
-            x: event.clientX, y: event.clientY, left: rect.left, top: rect.top,
-            width: rect.width, height: rect.height, moving: false };
+        panelPointer = {
+            id: event.pointerId, handle,
+            x: event.clientX, y: event.clientY,
+            left: rect.left, top: rect.top,
+            width: rect.width, height: rect.height,
+            nextX: rect.left, nextY: rect.top,
+            visualX: rect.left, visualY: rect.top,
+            moving: false,
+        };
         try { handle.setPointerCapture(event.pointerId); } catch (_) {}
     });
     root.addEventListener('pointermove', event => {
@@ -447,21 +494,38 @@ function enablePanelDrag(root) {
         if (!g || g.id !== event.pointerId) return;
         const dx = event.clientX - g.x, dy = event.clientY - g.y;
         if (!g.moving && Math.hypot(dx, dy) < 5) return;
-        g.moving = true;
-        const pos = clampWindow(g.left + dx, g.top + dy, g.width, g.height);
-        win.style.left = pos.x + 'px';
-        win.style.top = pos.y + 'px';
-        win.style.transform = 'none';
+        if (!g.moving) {
+            g.moving = true;
+            // Pin the existing layout once; subsequent frames never rewrite left/top.
+            win.style.left = g.left + 'px';
+            win.style.top = g.top + 'px';
+            win.style.transform = 'translate3d(0px, 0px, 0)';
+            win.classList.add('cs-dragging');
+        }
+        g.nextX = g.left + dx;
+        g.nextY = g.top + dy;
+        if (!panelDragFrame) panelDragFrame = requestAnimationFrame(renderDrag);
     });
     const finish = event => {
         const g = panelPointer;
         if (!g || g.id !== event.pointerId) return;
         panelPointer = null;
+        if (panelDragFrame) {
+            cancelAnimationFrame(panelDragFrame);
+            panelDragFrame = 0;
+        }
         try { if (g.handle.hasPointerCapture(event.pointerId)) g.handle.releasePointerCapture(event.pointerId); } catch (_) {}
-        if (!g.moving || event.type !== 'pointerup') return;
-        const rect = win.getBoundingClientRect();
-        if (!keyboardRaised()) {
-            state().panelPosition = clampWindow(rect.left, rect.top, rect.width, rect.height);
+        if (!g.moving) return;
+        const position = event.type === 'pointerup'
+            ? clampWindow(g.left + event.clientX - g.x, g.top + event.clientY - g.y, g.width, g.height)
+            : { x: g.left, y: g.top };
+        // Commit a single final layout position, then release the GPU layer.
+        win.style.left = position.x + 'px';
+        win.style.top = position.y + 'px';
+        win.style.transform = 'none';
+        win.classList.remove('cs-dragging');
+        if (event.type === 'pointerup' && !keyboardRaised()) {
+            state().panelPosition = { x: position.x, y: position.y };
             save();
         }
     };
@@ -548,6 +612,18 @@ function createUi() {
         '    <button type="button" id="cs-filter-empty" data-action="filter-empty">未备注（0）</button>',
         '  </div>',
         '  <div id="cs-results" class="cs-results"></div>',
+        '  <nav class="cs-pagination" aria-label="角色列表分页">',
+        '    <label class="cs-per-page" for="cs-page-size">每页 <select id="cs-page-size" aria-label="每页显示角色卡数量">',
+        '      <option value="20">20</option><option value="30">30</option>',
+        '      <option value="50">50</option><option value="100">100</option>',
+        '    </select> 张</label>',
+        '    <span id="cs-page-count" class="cs-page-count">共 0 张</span>',
+        '    <div class="cs-page-controls">',
+        '      <button type="button" id="cs-page-prev" data-action="page-prev" aria-label="上一页" title="上一页"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>',
+        '      <select id="cs-page-jump" aria-label="跳转页码"></select>',
+        '      <button type="button" id="cs-page-next" data-action="page-next" aria-label="下一页" title="下一页"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>',
+        '    </div>',
+        '  </nav>',
         '<div class="cs-detail-layer" id="cs-detail" hidden>',
         '  <div class="cs-detail-backdrop" data-action="detail-close"></div>',
         '  <section class="cs-detail-window" role="dialog" aria-modal="true" aria-labelledby="cs-detail-name">',
@@ -607,14 +683,21 @@ function createUi() {
             updateFloat();
             return;
         }
+        if (action === 'page-prev' || action === 'page-next') {
+            pageIndex += action === 'page-prev' ? -1 : 1;
+            render(null, true);
+            return;
+        }
         if (action.startsWith('filter-')) {
+            pageIndex = 0;
             state().filter = action.slice(7);
-            save(); render(); return;
+            save(); render(null, true); return;
         }
         if (action === 'list' || action === 'grid') {
+            pageIndex = 0;
             state().view = action;
             save();
-            return render();
+            return render(null, true);
         }
         if (action === 'backup') return downloadNotes();
         if (action === 'restore') return document.getElementById('cs-import-file')?.click();
@@ -625,10 +708,24 @@ function createUi() {
     });
     root.querySelector('#cs-search').addEventListener('input', e => {
         query = e.target.value;
+        pageIndex = 0;
         if (searchTimer) clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => { searchTimer = null; render(); }, 135);
+        searchTimer = setTimeout(() => { searchTimer = null; render(null, true); }, 135);
     });
-    root.querySelector('#cs-sort').addEventListener('change', e => { state().sort = e.target.value; save(); render(); });
+    root.querySelector('#cs-sort').addEventListener('change', e => {
+        pageIndex = 0;
+        state().sort = e.target.value;
+        save(); render(null, true);
+    });
+    root.querySelector('#cs-page-size').addEventListener('change', e => {
+        state().pageSize = Number(e.target.value);
+        pageIndex = 0;
+        save(); render(null, true);
+    });
+    root.querySelector('#cs-page-jump').addEventListener('change', e => {
+        pageIndex = Number(e.target.value) || 0;
+        render(null, true);
+    });
     root.querySelector('#cs-note-input').addEventListener('input', e => {
         root.querySelector('#cs-length').textContent = e.target.value.length + ' 字';
     });
