@@ -962,14 +962,6 @@
 }
 #cs-settings-panel .cs-changelog-version:first-child { margin-top: 0; }
 #cs-settings-panel .cs-changelog-line { margin: 3px 0; }
-#cs-settings-panel .cs-changelog-link {
-    display: inline-block;
-    margin: 7px 0 0;
-    font-size: 11px;
-    color: var(--SmartThemeBodyColor, #eee);
-    opacity: .8;
-    text-decoration: underline;
-}
 #cs-settings-panel .cs-version-row {
     display: flex;
     align-items: center;
