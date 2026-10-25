@@ -1,5 +1,5 @@
 /**
- * 角色卡册 / Character Shelf
+ * 角色备注 / Character Notes
  * For SillyTavern / TauriTavern. Notes remain in extension_settings,
  * separate from the character card and never enter generation prompts.
  */
@@ -14,6 +14,8 @@ let query = '';
 let editing = '';
 let detailKey = '';
 let priorFocus = null;
+let floatPointer = null;
+let skipFloatClick = false;
 
 function state() {
     if (!extension_settings[KEY] || typeof extension_settings[KEY] !== 'object' || Array.isArray(extension_settings[KEY])) {
@@ -24,6 +26,7 @@ function state() {
     if (data.view !== 'grid' && data.view !== 'list') data.view = 'list';
     if (!['newest', 'oldest', 'az', 'za'].includes(data.sort)) data.sort = 'newest';
     if (!['tavern', 'day', 'gray'].includes(data.theme)) data.theme = 'gray';
+    if (typeof data.showFloat !== 'boolean') data.showFloat = false;
     return data;
 }
 function save() { saveSettingsDebounced(); }
@@ -98,6 +101,7 @@ function render() {
     root.querySelector('#cs-sort').value = data.sort;
     root.querySelector('#cs-theme').value = data.theme;
     root.dataset.theme = data.theme;
+    updateFloat();
     root.querySelector('#cs-view-list').setAttribute('aria-pressed', String(data.view === 'list'));
     root.querySelector('#cs-view-grid').setAttribute('aria-pressed', String(data.view === 'grid'));
     root.querySelector('#cs-count').textContent = '共 ' + all.length + ' 张 · 已备注 '
@@ -126,8 +130,6 @@ function render() {
             const summary = node('div', 'cs-summary' + (note.trim() ? '' : ' cs-placeholder'), note.trim() || '还没有备注，点击查看并添加');
             summary.title = note;
             info.append(summary);
-            const tags = makeTags(entry.character);
-            if (tags.childElementCount) info.append(tags);
         } else if (note.trim()) {
             const dot = node('span', 'cs-dot');
             dot.title = '已添加备注';
@@ -227,7 +229,7 @@ function downloadNotes() {
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' }));
     const link = node('a');
     link.href = url;
-    link.download = '角色卡册-备注备份-' + new Date().toISOString().slice(0, 10) + '.json';
+    link.download = '角色备注-备份-' + new Date().toISOString().slice(0, 10) + '.json';
     document.body.append(link);
     link.click();
     link.remove();
@@ -249,7 +251,7 @@ async function restoreNotes(file) {
     for (const [key, value] of entries) if (value) notes[key] = value;
     save();
     render();
-    window.toastr?.success?.('已恢复 ' + entries.length + ' 条备注', '角色卡册');
+    window.toastr?.success?.('已恢复 ' + entries.length + ' 条备注', '角色备注');
 }
 async function openCharacter(key) {
     const entry = allCharacters().find(item => item.key === key);
@@ -259,7 +261,7 @@ async function openCharacter(key) {
         closePanel();
     } catch (error) {
         console.error('[CharacterShelf] Open character failed:', error);
-        window.toastr?.error?.('无法打开角色，请从原角色列表重试', '角色卡册');
+        window.toastr?.error?.('无法打开角色，请从原角色列表重试', '角色备注');
     }
 }
 function createUi() {
@@ -269,9 +271,9 @@ function createUi() {
     root.hidden = true;
     root.innerHTML = [
         '<div class="cs-backdrop" data-action="close"></div>',
-        '<section class="cs-window" role="dialog" aria-modal="true" aria-label="角色卡册">',
-        '  <header class="cs-header"><div><div class="cs-eyebrow">CHARACTER SHELF</div>',
-        '    <h2>角色卡册</h2><p>每张角色卡，都有一条只属于你的备注。</p></div>',
+        '<section class="cs-window" role="dialog" aria-modal="true" aria-label="角色备注">',
+        '  <header class="cs-header"><div><div class="cs-eyebrow">CHARACTER NOTES</div>',
+        '    <h2>角色备注</h2><p>每张角色卡，都有一条只属于你的备注。</p></div>',
         '    <button type="button" class="cs-close" data-action="close" aria-label="关闭">×</button></header>',
         '  <div class="cs-toolbar">',
         '    <input id="cs-search" type="search" placeholder="搜索角色名字或备注…" aria-label="搜索角色" />',
@@ -349,13 +351,13 @@ function createUi() {
     });
     root.querySelector('#cs-search').addEventListener('input', e => { query = e.target.value; render(); });
     root.querySelector('#cs-sort').addEventListener('change', e => { state().sort = e.target.value; save(); render(); });
-    root.querySelector('#cs-theme').addEventListener('change', e => { state().theme = e.target.value; save(); render(); });
+    root.querySelector('#cs-theme').addEventListener('change', e => { state().theme = e.target.value; save(); render(); updateFloat(); });
     root.querySelector('#cs-note-input').addEventListener('input', e => {
         root.querySelector('#cs-length').textContent = e.target.value.length + ' 字';
     });
     root.querySelector('#cs-import-file').addEventListener('change', async e => {
         try { await restoreNotes(e.target.files?.[0]); }
-        catch (error) { window.toastr?.error?.(error.message, '角色卡册 · 恢复失败'); }
+        catch (error) { window.toastr?.error?.(error.message, '角色备注 · 恢复失败'); }
         finally { e.target.value = ''; }
     });
     document.addEventListener('keydown', event => {
@@ -380,17 +382,161 @@ function launcher() {
     const button = node('button', 'menu_button fa-solid fa-book-open');
     button.id = 'cs-launcher';
     button.type = 'button';
-    button.title = '角色卡册 · 私人备注';
-    button.setAttribute('aria-label', '打开角色卡册');
+    button.title = '角色备注';
+    button.setAttribute('aria-label', '打开角色备注');
     button.addEventListener('click', openPanel);
     container.append(button);
+}
+function buildSettings() {
+    if (document.getElementById('cs-settings-panel')) return;
+    const container = document.getElementById('extensions_settings2')
+        || document.getElementById('extensions_settings');
+    if (!container) return;
+    const section = node('section', 'extension_container cs-settings');
+    section.id = 'cs-settings-panel';
+    const heading = node('h4', 'cs-settings-title', '角色备注');
+    const description = node('p', 'cs-settings-description', '独立浏览角色卡与私人备注');
+    const open = node('button', 'menu_button cs-settings-open', '打开角色备注');
+    open.type = 'button';
+    open.addEventListener('click', openPanel);
+    const row = node('label', 'cs-settings-toggle');
+    const checkbox = node('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = 'cs-float-toggle';
+    checkbox.checked = state().showFloat;
+    const label = node('span', '', '显示书本悬浮按钮');
+    checkbox.addEventListener('change', () => {
+        state().showFloat = checkbox.checked;
+        save();
+        updateFloat();
+    });
+    row.append(checkbox, label);
+    const foot = node('p', 'cs-settings-description', '悬浮按钮可拖动，配色跟随角色备注当前主题。');
+    section.append(heading, description, open, row, foot);
+    container.append(section);
+}
+function buildWand() {
+    if (document.getElementById('cs-wand-entry')) return;
+    const menu = document.getElementById('extensionsMenu');
+    if (!menu) return;
+    const item = node('div', 'list-group-item flex-container flexGap5');
+    item.id = 'cs-wand-entry';
+    item.role = 'button';
+    item.tabIndex = 0;
+    const glyph = node('i', 'fa-solid fa-book-open extensionsMenuExtensionButton');
+    glyph.setAttribute('aria-hidden', 'true');
+    const title = node('span', '', '角色备注');
+    item.append(glyph, title);
+    item.addEventListener('click', openPanel);
+    item.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            item.click();
+        }
+    });
+    menu.append(item);
+}
+function clampFloat(x, y, width, height) {
+    const margin = 8;
+    return {
+        x: Math.max(margin, Math.min(x, Math.max(margin, window.innerWidth - width - margin))),
+        y: Math.max(margin, Math.min(y, Math.max(margin, window.innerHeight - height - margin))),
+    };
+}
+function updateFloat() {
+    const button = document.getElementById('cs-float-button');
+    if (!button) return;
+    const current = state();
+    button.hidden = !current.showFloat;
+    button.dataset.theme = current.theme;
+    const checkbox = document.getElementById('cs-float-toggle');
+    if (checkbox && checkbox.checked !== current.showFloat) checkbox.checked = current.showFloat;
+    if (button.hidden) return;
+    const saved = current.floatPosition;
+    if (!saved || !Number.isFinite(saved.x) || !Number.isFinite(saved.y)) {
+        button.style.left = '';
+        button.style.top = '';
+        button.style.right = '';
+        button.style.bottom = '';
+        return;
+    }
+    const pos = clampFloat(saved.x, saved.y, button.offsetWidth || 46, button.offsetHeight || 46);
+    button.style.left = pos.x + 'px';
+    button.style.top = pos.y + 'px';
+    button.style.right = 'auto';
+    button.style.bottom = 'auto';
+}
+function buildFloat() {
+    if (document.getElementById('cs-float-button')) return;
+    const button = node('button', 'cs-float-button');
+    button.id = 'cs-float-button';
+    button.type = 'button';
+    button.title = '角色备注（可拖动）';
+    button.setAttribute('aria-label', '打开角色备注');
+    const icon = node('i', 'fa-solid fa-book-open');
+    icon.setAttribute('aria-hidden', 'true');
+    button.append(icon);
+    button.hidden = true;
+    document.body.append(button);
+    button.addEventListener('pointerdown', event => {
+        if (event.button !== 0 || floatPointer) return;
+        const rect = button.getBoundingClientRect();
+        floatPointer = {
+            id: event.pointerId, x: event.clientX, y: event.clientY,
+            left: rect.left, top: rect.top, moving: false,
+        };
+        try { button.setPointerCapture(event.pointerId); } catch (_) {}
+    });
+    button.addEventListener('pointermove', event => {
+        const gesture = floatPointer;
+        if (!gesture || gesture.id !== event.pointerId) return;
+        const dx = event.clientX - gesture.x;
+        const dy = event.clientY - gesture.y;
+        if (!gesture.moving && Math.hypot(dx, dy) < 6) return;
+        gesture.moving = true;
+        const pos = clampFloat(gesture.left + dx, gesture.top + dy,
+            button.offsetWidth || 46, button.offsetHeight || 46);
+        button.style.left = pos.x + 'px';
+        button.style.top = pos.y + 'px';
+        button.style.right = 'auto';
+        button.style.bottom = 'auto';
+    });
+    function finish(event) {
+        const gesture = floatPointer;
+        if (!gesture || gesture.id !== event.pointerId) return;
+        floatPointer = null;
+        try { if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId); } catch (_) {}
+        if (!gesture.moving) return;
+        skipFloatClick = true;
+        // Do not open the browser when dragging the floating control.
+        const rect = button.getBoundingClientRect();
+        state().floatPosition = clampFloat(rect.left, rect.top, rect.width, rect.height);
+        save();
+    }
+    button.addEventListener('pointerup', finish);
+    button.addEventListener('pointercancel', finish);
+    button.addEventListener('click', event => {
+        if (skipFloatClick) {
+            skipFloatClick = false;
+            event.preventDefault();
+            return;
+        }
+        openPanel();
+    });
+    window.addEventListener('resize', () => updateFloat(), { passive: true });
+    updateFloat();
 }
 function init() {
     state();
     createUi();
     launcher();
+    buildSettings();
+    buildWand();
+    buildFloat();
     const observer = new MutationObserver(() => {
         if (!document.getElementById('cs-launcher')) launcher();
+        if (!document.getElementById('cs-settings-panel')) buildSettings();
+        if (!document.getElementById('cs-wand-entry')) buildWand();
     });
     observer.observe(document.body, { childList: true, subtree: true });
     for (const type of [event_types.CHARACTER_PAGE_LOADED, event_types.CHARACTER_EDITED,
