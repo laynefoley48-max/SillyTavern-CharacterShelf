@@ -413,7 +413,7 @@ function buildSettings() {
     row.append(checkbox, label);
     const foot = node('p', 'cs-settings-description', '悬浮按钮可拖动，配色跟随角色备注当前主题。');
     section.append(heading, description, open, row, foot);
-    container.append(section);
+    container.prepend(section);
 }
 function buildWand() {
     if (document.getElementById('cs-wand-entry')) return;
@@ -480,6 +480,7 @@ function buildFloat() {
     document.body.append(button);
     button.addEventListener('pointerdown', event => {
         if (event.button !== 0 || floatPointer) return;
+        skipFloatClick = false;
         const rect = button.getBoundingClientRect();
         floatPointer = {
             id: event.pointerId, x: event.clientX, y: event.clientY,
@@ -507,7 +508,7 @@ function buildFloat() {
         floatPointer = null;
         try { if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId); } catch (_) {}
         if (!gesture.moving) return;
-        skipFloatClick = true;
+        skipFloatClick = event.type === 'pointerup';
         // Do not open the browser when dragging the floating control.
         const rect = button.getBoundingClientRect();
         state().floatPosition = clampFloat(rect.left, rect.top, rect.width, rect.height);
@@ -516,11 +517,12 @@ function buildFloat() {
     button.addEventListener('pointerup', finish);
     button.addEventListener('pointercancel', finish);
     button.addEventListener('click', event => {
-        if (skipFloatClick) {
+        if (skipFloatClick && event.detail !== 0) {
             skipFloatClick = false;
             event.preventDefault();
             return;
         }
+        skipFloatClick = false;
         openPanel();
     });
     window.addEventListener('resize', () => updateFloat(), { passive: true });
