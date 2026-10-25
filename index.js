@@ -728,30 +728,41 @@ function buildWand() {
     menu.append(item);
 }
 function clampFloat(x, y, width, height) {
+    const bounds = viewportBounds();
     const margin = 8;
     return {
-        x: Math.max(margin, Math.min(x, Math.max(margin, window.innerWidth - width - margin))),
-        y: Math.max(margin, Math.min(y, Math.max(margin, window.innerHeight - height - margin))),
+        x: Math.max(margin, Math.min(x, Math.max(margin, bounds.width - width - margin))),
+        y: Math.max(margin, Math.min(y, Math.max(margin, bounds.height - height - margin))),
     };
+}
+function floatLocation(saved, dock, width, height) {
+    const bounds = viewportBounds();
+    const y = clampFloat(0, saved?.y ?? bounds.height * 0.55, width, height).y;
+    if (dock === 'left') return { x: -Math.round(width / 2), y };
+    if (dock === 'right') return { x: Math.round(bounds.width - width / 2), y };
+    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+        return clampFloat(saved.x, saved.y, width, height);
+    }
+    return null;
 }
 function updateFloat() {
     const button = document.getElementById('cs-float-button');
     if (!button) return;
-    const current = state();
-    button.hidden = !current.showFloat;
-    button.dataset.theme = current.theme;
+    const data = state();
+    button.hidden = !data.showFloat;
+    button.dataset.theme = data.theme;
+    button.dataset.dock = data.floatDock || '';
     const checkbox = document.getElementById('cs-float-toggle');
-    if (checkbox && checkbox.checked !== current.showFloat) checkbox.checked = current.showFloat;
+    if (checkbox && checkbox.checked !== data.showFloat) checkbox.checked = data.showFloat;
     if (button.hidden) return;
-    const saved = current.floatPosition;
-    if (!saved || !Number.isFinite(saved.x) || !Number.isFinite(saved.y)) {
+    const pos = floatLocation(data.floatPosition, data.floatDock, button.offsetWidth || 46, button.offsetHeight || 46);
+    if (!pos) {
         button.style.left = '';
         button.style.top = '';
         button.style.right = '';
         button.style.bottom = '';
         return;
     }
-    const pos = clampFloat(saved.x, saved.y, button.offsetWidth || 46, button.offsetHeight || 46);
     button.style.left = pos.x + 'px';
     button.style.top = pos.y + 'px';
     button.style.right = 'auto';
@@ -772,6 +783,7 @@ function buildFloat() {
     button.addEventListener('pointerdown', event => {
         if (event.button !== 0 || floatPointer) return;
         skipFloatClick = false;
+        button.classList.remove('cs-snapping');
         const rect = button.getBoundingClientRect();
         floatPointer = {
             id: event.pointerId, x: event.clientX, y: event.clientY,
@@ -800,9 +812,17 @@ function buildFloat() {
         try { if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId); } catch (_) {}
         if (!gesture.moving) return;
         skipFloatClick = event.type === 'pointerup';
-        // Do not open the browser when dragging the floating control.
+        // On release near either edge, tuck half the book off-screen.
         const rect = button.getBoundingClientRect();
-        state().floatPosition = clampFloat(rect.left, rect.top, rect.width, rect.height);
+        const bounds = viewportBounds();
+        const threshold = 64;
+        const dock = rect.left <= threshold ? 'left'
+            : rect.right >= bounds.width - threshold ? 'right' : null;
+        const pos = floatLocation({ x: rect.left, y: rect.top }, dock, rect.width, rect.height);
+        state().floatDock = dock;
+        state().floatPosition = pos;
+        button.classList.add('cs-snapping');
+        updateFloat();
         save();
     }
     button.addEventListener('pointerup', finish);
@@ -816,12 +836,8 @@ function buildFloat() {
         skipFloatClick = false;
         toggleFloatPanel();
     });
-    const reposition = () => {
-        updateFloat();
-        if (!document.getElementById(ROOT_ID)?.hidden) positionPanel();
-    };
-    window.addEventListener('resize', reposition, { passive: true });
-    window.visualViewport?.addEventListener('resize', reposition, { passive: true });
+    window.addEventListener('resize', queueViewportUpdate, { passive: true });
+    window.visualViewport?.addEventListener('resize', queueViewportUpdate, { passive: true });
     updateFloat();
 }
 function init() {
