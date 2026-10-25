@@ -299,6 +299,7 @@ function closeEditor() {
         root.querySelector('#cs-detail').classList.remove('cs-under-editor');
     }
     editing = '';
+    editorAnchor = null;
 }
 function saveEditor() {
     if (!editing) return;
