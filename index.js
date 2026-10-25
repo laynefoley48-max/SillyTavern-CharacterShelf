@@ -282,6 +282,7 @@ function openEditor(key) {
     if (!entry) return;
     editing = key;
     const root = document.getElementById(ROOT_ID);
+    root.querySelector('#cs-detail').classList.add('cs-under-editor');
     root.querySelector('#cs-editor-name').textContent = entry.character.name || '(未命名)';
     const field = root.querySelector('#cs-note-input');
     field.value = noteFor(key);
@@ -291,7 +292,10 @@ function openEditor(key) {
 }
 function closeEditor() {
     const root = document.getElementById(ROOT_ID);
-    if (root) root.querySelector('#cs-editor').hidden = true;
+    if (root) {
+        root.querySelector('#cs-editor').hidden = true;
+        root.querySelector('#cs-detail').classList.remove('cs-under-editor');
+    }
     editing = '';
 }
 function saveEditor() {
@@ -304,7 +308,11 @@ function saveEditor() {
     else delete notes[editing];
     save();
     closeEditor();
-    refreshEditedCard(key, previous, value);
+    if (panelNeedsRefresh) {
+        cardCache.clear();
+        render(listAnchor(document.getElementById('cs-results'), key));
+        panelNeedsRefresh = false;
+    } else refreshEditedCard(key, previous, value);
     if (detailKey) updateDetails();
 }
 function viewportBounds() {
@@ -849,18 +857,50 @@ function init() {
     buildSettings();
     buildWand();
     buildFloat();
-    const observer = new MutationObserver(() => {
-        if (!document.getElementById('cs-launcher')) launcher();
-        if (!document.getElementById('cs-settings-panel')) buildSettings();
-        if (!document.getElementById('cs-wand-entry')) buildWand();
+    // Only watch the three host controls, never the entire streaming chat.
+    const refreshEntrances = () => { launcher(); buildSettings(); buildWand(); };
+    const scopedObserver = new MutationObserver(() => refreshEntrances());
+    const watched = new WeakSet();
+    const watch = element => {
+        if (!element || watched.has(element)) return;
+        watched.add(element);
+        scopedObserver.observe(element, { childList: true });
+    };
+    const watchHosts = () => {
+        for (const id of ['rm_buttons_container', 'rm_button_bar',
+            'extensions_settings2', 'extensions_settings', 'extensionsMenu']) {
+            const host = document.getElementById(id);
+            watch(host);
+            watch(host?.parentElement);
+        }
+    };
+    refreshEntrances();
+    watchHosts();
+    // Initial UI may mount asynchronously; a short-lived observer finds it and disconnects.
+    const startupObserver = new MutationObserver(() => {
+        refreshEntrances();
+        watchHosts();
+        if (document.getElementById('cs-launcher')
+            && document.getElementById('cs-settings-panel')
+            && document.getElementById('cs-wand-entry')) startupObserver.disconnect();
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    if (!(document.getElementById('cs-launcher') && document.getElementById('cs-settings-panel')
+        && document.getElementById('cs-wand-entry'))) {
+        startupObserver.observe(document.body, { childList: true, subtree: true });
+        setTimeout(() => startupObserver.disconnect(), 7000);
+    }
+    const onUiReady = () => { refreshEntrances(); watchHosts(); };
+    eventSource.on(event_types.APP_READY, onUiReady);
+    eventSource.on(event_types.EXTENSION_SETTINGS_LOADED, onUiReady);
     for (const type of [event_types.CHARACTER_PAGE_LOADED, event_types.CHARACTER_EDITED,
         event_types.CHARACTER_DELETED, event_types.CHARACTER_DUPLICATED]) {
         eventSource.on(type, () => {
             const root = document.getElementById(ROOT_ID);
-            if (root && !root.hidden) { render(); if (detailKey) updateDetails(); }
-            else panelNeedsRefresh = true;
+            cardCache.clear();
+            if (root && !root.hidden && root.querySelector('#cs-editor').hidden) {
+                render(listAnchor(root.querySelector('#cs-results')));
+                if (detailKey) updateDetails();
+            } else panelNeedsRefresh = true;
         });
     }
     eventSource.on(event_types.CHARACTER_RENAMED, (oldAvatar, newAvatar) => {
@@ -874,8 +914,11 @@ function init() {
             save();
         }
         const root = document.getElementById(ROOT_ID);
-        if (root && !root.hidden) { render(); if (detailKey) updateDetails(); }
-            else panelNeedsRefresh = true;
+        cardCache.clear();
+        if (root && !root.hidden && root.querySelector('#cs-editor').hidden) {
+            render(listAnchor(root.querySelector('#cs-results')));
+            if (detailKey) updateDetails();
+        } else panelNeedsRefresh = true;
     });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
