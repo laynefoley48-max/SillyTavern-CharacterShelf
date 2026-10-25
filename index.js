@@ -332,12 +332,18 @@ function setPanelBaseHeight(root) {
         root.style.setProperty('--cs-panel-height', value);
     }
 }
+function keyboardRaised() {
+    return Boolean(layoutViewport && window.visualViewport
+        && window.visualViewport.height < layoutViewport.height - 115);
+}
 function clampWindow(left, top, width, height) {
     const viewport = viewportBounds();
     const margin = 8;
+    // Temporarily allow upward movement during typing; never save it as the resting position.
+    const minimumTop = keyboardRaised() ? Math.min(margin, Math.round(78 - height * 0.48)) : margin;
     return {
         x: Math.max(margin, Math.min(left, Math.max(margin, viewport.width - width - margin))),
-        y: Math.max(margin, Math.min(top, Math.max(margin, viewport.height - height - margin))),
+        y: Math.max(minimumTop, Math.min(top, Math.max(minimumTop, viewport.height - height - margin))),
     };
 }
 function positionPanel() {
@@ -364,7 +370,8 @@ function positionPanel() {
             const input = root.querySelector('#cs-note-input');
             if (input && !root.querySelector('#cs-editor').hidden) {
                 const relativeBottom = input.getBoundingClientRect().bottom - rect.top;
-                top = Math.max(8, point.y - Math.max(0, point.y + relativeBottom - availableBottom));
+                const minTop = Math.min(8, Math.round(78 - rect.height * 0.48));
+                top = Math.max(minTop, point.y - Math.max(0, point.y + relativeBottom - availableBottom));
             }
         }
     }
@@ -460,8 +467,10 @@ function enablePanelDrag(root) {
         try { if (g.handle.hasPointerCapture(event.pointerId)) g.handle.releasePointerCapture(event.pointerId); } catch (_) {}
         if (!g.moving || event.type !== 'pointerup') return;
         const rect = win.getBoundingClientRect();
-        state().panelPosition = clampWindow(rect.left, rect.top, rect.width, rect.height);
-        save();
+        if (!keyboardRaised()) {
+            state().panelPosition = clampWindow(rect.left, rect.top, rect.width, rect.height);
+            save();
+        }
     };
     root.addEventListener('pointerup', finish);
     root.addEventListener('pointercancel', finish);
