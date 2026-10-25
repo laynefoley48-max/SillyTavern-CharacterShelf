@@ -6,6 +6,6 @@
   "js": "index.js",
   "css": "style.css",
   "author": "ChatGPT",
-  "version": "0.4.1",
-  "description": "Private notes with compact list/grid browsing, note status filters, native collapsible settings, and theme-aware floating launcher."
+  "version": "0.5.0",
+  "description": "Private character notes in a movable, responsive, non-modal compact window with optional fullscreen and floating-book show/hide; search, filters and JSON backup."
 }
