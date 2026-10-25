@@ -333,8 +333,8 @@ function setPanelBaseHeight(root) {
     }
 }
 function keyboardRaised() {
-    return Boolean(layoutViewport && window.visualViewport
-        && window.visualViewport.height < layoutViewport.height - 115);
+    const visibleHeight = window.visualViewport?.height ?? window.innerHeight;
+    return Boolean(layoutViewport && visibleHeight < layoutViewport.height - 115);
 }
 function clampWindow(left, top, width, height) {
     const viewport = viewportBounds();
@@ -759,7 +759,8 @@ function clampFloat(x, y, width, height) {
 }
 function floatLocation(saved, dock, width, height) {
     const bounds = viewportBounds();
-    const y = clampFloat(0, saved?.y ?? bounds.height * 0.55, width, height).y;
+    const initialY = Number.isFinite(saved?.y) ? saved.y : bounds.height * 0.55;
+    const y = clampFloat(0, initialY, width, height).y;
     if (dock === 'left') return { x: -Math.round(width / 2), y };
     if (dock === 'right') return { x: Math.round(bounds.width - width / 2), y };
     if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
