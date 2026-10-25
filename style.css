@@ -159,7 +159,7 @@
 }
 #character-shelf-root .cs-card-list {
     display: grid; grid-template-columns: 48px minmax(0,1fr); gap: 10px;
-    align-items: start; padding: 9px 11px; min-height: 70px;
+    align-items: start; padding: 7px 11px 13px; min-height: 70px;
 }
 #character-shelf-root .cs-card-list .cs-avatar {
     display: block; width: 48px; height: 61px; object-fit: cover;
@@ -173,7 +173,7 @@
 }
 #character-shelf-root .cs-summary {
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
-    margin-top: 4px; line-height: 1.55; font-size: 12.5px;
+    margin-top: 2px; line-height: 1.46; font-size: 12.5px;
     color: var(--cs-muted); white-space: pre-line; overflow-wrap: anywhere; overflow: hidden;
 }
 #character-shelf-root .cs-summary.cs-placeholder { color: var(--cs-faint); font-style: italic; }
@@ -302,7 +302,7 @@
         grid-template-columns: repeat(auto-fill, minmax(49px, 61px)); gap: 7px;
     }
     #character-shelf-root .cs-card-list {
-        grid-template-columns: 42px minmax(0,1fr); gap: 8px; padding: 8px;
+        grid-template-columns: 42px minmax(0,1fr); gap: 8px; padding: 7px 9px 11px;
     }
     #character-shelf-root .cs-card-list .cs-avatar { width: 42px; height: 54px; }
     #character-shelf-root .cs-summary { -webkit-line-clamp: 2; font-size: 12px; }
@@ -661,3 +661,7 @@
     }
     #character-shelf-root .cs-results { padding: 0 9px 10px; }
 }
+
+/* v0.4.1: Keep the name and its preview together, with extra breathing room below. */
+#character-shelf-root .cs-card-list .cs-name { line-height: 1.34; }
+#character-shelf-root .cs-card-list .cs-info { align-self: start; }
