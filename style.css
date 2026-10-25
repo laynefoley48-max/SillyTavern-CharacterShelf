@@ -190,17 +190,17 @@
 }
 #character-shelf-root .cs-tag-more { font-weight: 600; }
 #character-shelf-root .cs-results.cs-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 11px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 64px)); gap: 8px;
 }
-#character-shelf-root .cs-card-grid { min-width: 0; padding: 7px 7px 11px; align-self: start; }
+#character-shelf-root .cs-card-grid { min-width: 0; padding: 4px 4px 7px; align-self: start; }
 #character-shelf-root .cs-card-grid .cs-avatar {
     width: 100%; display: block; aspect-ratio: 3 / 4; object-fit: cover;
     border-radius: 6px; background: var(--cs-control);
 }
-#character-shelf-root .cs-card-grid .cs-info { padding: 6px 1px 0; }
-#character-shelf-root .cs-card-grid .cs-name { font-size: 12px; text-align: center; }
+#character-shelf-root .cs-card-grid .cs-info { padding: 4px 0 0; }
+#character-shelf-root .cs-card-grid .cs-name { font-size: 11px; line-height: 1.35; text-align: center; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; word-break: break-word; }
 #character-shelf-root .cs-dot {
-    position: absolute; z-index: 2; top: 12px; left: 12px; pointer-events: none;
+    position: absolute; z-index: 2; top: 7px; left: 7px; pointer-events: none;
     width: 7px; height: 7px; border-radius: 50%;
     background: var(--cs-text); box-shadow: 0 0 0 2px var(--cs-panel);
 }
@@ -299,7 +299,7 @@
     #character-shelf-root .cs-count { padding: 4px 13px 10px; }
     #character-shelf-root .cs-results { padding: 0 11px 12px; }
     #character-shelf-root .cs-results.cs-grid {
-        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px;
+        grid-template-columns: repeat(auto-fill, minmax(49px, 61px)); gap: 7px;
     }
     #character-shelf-root .cs-card-list {
         grid-template-columns: 42px minmax(0,1fr); gap: 8px; padding: 8px;
@@ -312,4 +312,115 @@
     }
     #character-shelf-root .cs-footer > span { display: none; }
     #character-shelf-root .cs-footer > div { width: 100%; justify-content: flex-end; }
+}
+
+
+/* v0.3.0: extension settings panel */
+#cs-settings-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    margin: 8px 0;
+    padding: 13px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--SmartThemeBorderColor, #7775);
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor, #2a2a2a) 86%, var(--SmartThemeBodyColor, #eee) 14%);
+    color: var(--SmartThemeBodyColor, #eee);
+}
+#cs-settings-panel .cs-settings-title {
+    margin: 0;
+    font-size: calc(var(--mainFontSize, 15px) * 1.04);
+    font-weight: 650;
+}
+#cs-settings-panel .cs-settings-description {
+    color: var(--SmartThemeBodyColor, #eee);
+    opacity: .78;
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 0;
+}
+#cs-settings-panel .cs-settings-open {
+    width: 100%;
+    min-height: 34px;
+    justify-content: center;
+    color: inherit;
+}
+#cs-settings-panel .cs-settings-toggle {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 9px;
+    cursor: pointer;
+    font-size: 13px;
+}
+#cs-settings-panel .cs-settings-toggle input {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+/* Compact character-note avatar grid: four times the density of the previous design. */
+#character-shelf-root .cs-results.cs-grid {
+    justify-content: start;
+}
+#character-shelf-root .cs-card-grid .cs-avatar {
+    border-radius: 5px;
+}
+#character-shelf-root .cs-card-grid .cs-name {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* Floating book launcher uses the exact same three theme options. */
+#cs-float-button[hidden] { display: none !important; }
+#cs-float-button {
+    --cs-float-bg: #343434;
+    --cs-float-border: #656565;
+    --cs-float-icon: #f2f2f2;
+    position: fixed;
+    z-index: 2147481990;
+    right: 19px;
+    bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+    left: auto;
+    top: auto;
+    width: 46px;
+    height: 46px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--cs-float-border);
+    border-radius: 50%;
+    background: var(--cs-float-bg);
+    color: var(--cs-float-icon);
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    font-size: 19px;
+    line-height: 1;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+#cs-float-button[data-theme="day"] {
+    --cs-float-bg: #f3f3f0;
+    --cs-float-border: #bdbdb8;
+    --cs-float-icon: #383835;
+}
+#cs-float-button[data-theme="gray"] {
+    --cs-float-bg: #343434;
+    --cs-float-border: #5e5e5e;
+    --cs-float-icon: #f2f2f2;
+}
+#cs-float-button[data-theme="tavern"] {
+    --cs-float-bg: color-mix(in srgb, var(--SmartThemeBlurTintColor, #282828) 83%, var(--SmartThemeBodyColor, #eee) 17%);
+    --cs-float-border: var(--SmartThemeBorderColor, #727272);
+    --cs-float-icon: var(--SmartThemeBodyColor, #eee);
+}
+#cs-float-button:active { cursor: grabbing; }
+#cs-float-button:focus-visible {
+    outline: 2px solid var(--cs-float-icon);
+    outline-offset: 3px;
 }
