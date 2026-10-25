@@ -6,21 +6,24 @@
 import { characters, getThumbnailUrl, saveSettingsDebounced, selectCharacterById } from '../../../../script.js';
 import { extension_settings } from '../../../extensions.js';
 import { eventSource, event_types } from '../../../events.js';
+import { getTagsList } from '../../../tags.js';
 
 const ROOT_ID = 'character-shelf-root';
 const KEY = 'characterShelf';
 let query = '';
 let editing = '';
+let detailKey = '';
 let priorFocus = null;
 
 function state() {
     if (!extension_settings[KEY] || typeof extension_settings[KEY] !== 'object' || Array.isArray(extension_settings[KEY])) {
-        extension_settings[KEY] = { notes: {}, view: 'list', sort: 'newest' };
+        extension_settings[KEY] = { notes: {}, view: 'list', sort: 'newest', theme: 'tavern' };
     }
     const data = extension_settings[KEY];
     if (!data.notes || typeof data.notes !== 'object' || Array.isArray(data.notes)) data.notes = {};
     if (data.view !== 'grid' && data.view !== 'list') data.view = 'list';
     if (!['newest', 'oldest', 'az', 'za'].includes(data.sort)) data.sort = 'newest';
+    if (!['tavern', 'day', 'gray'].includes(data.theme)) data.theme = 'tavern';
     return data;
 }
 function save() { saveSettingsDebounced(); }
@@ -60,6 +63,20 @@ function sortItems(a, b) {
     }
     return b.index - a.index;
 }
+function visibleTags(character) {
+    return getTagsList(character.avatar).filter(tag => !tag.is_hidden_on_character_card && tag.name);
+}
+function makeTags(character, limit = 9) {
+    const holder = node('div', 'cs-tags');
+    const items = visibleTags(character);
+    for (const tag of items.slice(0, limit)) {
+        const chip = node('span', 'cs-tag', tag.name);
+        chip.title = tag.name;
+        holder.append(chip);
+    }
+    if (items.length > limit) holder.append(node('span', 'cs-tag cs-tag-more', '+' + (items.length - limit)));
+    return holder;
+}
 function avatar(character) {
     if (!character.avatar || character.avatar === 'none') return '/img/ai4.png';
     return getThumbnailUrl('avatar', character.avatar);
@@ -73,11 +90,14 @@ function render() {
     const needle = query.trim().toLocaleLowerCase();
     const shown = all.filter(entry => !needle
         || String(entry.character.name || '').toLocaleLowerCase().includes(needle)
-        || noteFor(entry.key).toLocaleLowerCase().includes(needle));
+        || noteFor(entry.key).toLocaleLowerCase().includes(needle)
+        || visibleTags(entry.character).some(tag => tag.name.toLocaleLowerCase().includes(needle)));
     shown.sort(sortItems);
     results.replaceChildren();
     results.className = 'cs-results cs-' + data.view;
     root.querySelector('#cs-sort').value = data.sort;
+    root.querySelector('#cs-theme').value = data.theme;
+    root.dataset.theme = data.theme;
     root.querySelector('#cs-view-list').setAttribute('aria-pressed', String(data.view === 'list'));
     root.querySelector('#cs-view-grid').setAttribute('aria-pressed', String(data.view === 'grid'));
     root.querySelector('#cs-count').textContent = '共 ' + all.length + ' 张 · 已备注 '
@@ -103,9 +123,11 @@ function render() {
         info.append(name);
         const note = noteFor(entry.key);
         if (data.view === 'list') {
-            const summary = node('div', 'cs-summary' + (note.trim() ? '' : ' cs-placeholder'), note.trim() || '还没有备注，点击铅笔添加');
+            const summary = node('div', 'cs-summary' + (note.trim() ? '' : ' cs-placeholder'), note.trim() || '还没有备注，点击查看并添加');
             summary.title = note;
             info.append(summary);
+            const tags = makeTags(entry.character);
+            if (tags.childElementCount) info.append(tags);
         } else if (note.trim()) {
             const dot = node('span', 'cs-dot');
             dot.title = '已添加备注';
@@ -117,15 +139,35 @@ function render() {
         open.dataset.action = 'open';
         open.setAttribute('aria-label', '打开 ' + (entry.character.name || '角色'));
         card.append(open);
-        const edit = node('button', 'cs-edit', '✎');
-        edit.type = 'button';
-        edit.dataset.action = 'edit';
-        edit.setAttribute('aria-label', '编辑 ' + (entry.character.name || '角色') + ' 的备注');
-        edit.title = '编辑私人备注';
-        card.append(edit);
         batch.append(card);
     }
     results.append(batch);
+}
+function updateDetails() {
+    const root = document.getElementById(ROOT_ID);
+    const entry = allCharacters().find(item => item.key === detailKey);
+    if (!root || !entry) return;
+    root.querySelector('#cs-detail-name').textContent = entry.character.name || '(未命名)';
+    const note = noteFor(detailKey).trim();
+    const content = root.querySelector('#cs-detail-note');
+    content.textContent = note || '还没有添加私人备注。可以点击下方「编辑备注」填写。';
+    content.classList.toggle('cs-placeholder', !note);
+    const tags = root.querySelector('#cs-detail-tags');
+    tags.replaceChildren(...makeTags(entry.character, 40).childNodes);
+    tags.hidden = !tags.childElementCount;
+}
+function openDetails(key) {
+    if (!allCharacters().some(item => item.key === key)) return;
+    detailKey = key;
+    updateDetails();
+    const root = document.getElementById(ROOT_ID);
+    root.querySelector('#cs-detail').hidden = false;
+    root.querySelector('#cs-detail-close').focus();
+}
+function closeDetails() {
+    const root = document.getElementById(ROOT_ID);
+    if (root) root.querySelector('#cs-detail').hidden = true;
+    detailKey = '';
 }
 function openEditor(key) {
     const entry = allCharacters().find(item => item.key === key);
@@ -153,11 +195,14 @@ function saveEditor() {
     save();
     closeEditor();
     render();
+    if (detailKey) updateDetails();
 }
 function openPanel() {
     const root = document.getElementById(ROOT_ID);
     if (!root) return;
     priorFocus = document.activeElement;
+    closeEditor();
+    closeDetails();
     root.hidden = false;
     query = '';
     root.querySelector('#cs-search').value = '';
@@ -168,6 +213,7 @@ function closePanel() {
     const root = document.getElementById(ROOT_ID);
     if (!root) return;
     closeEditor();
+    closeDetails();
     root.hidden = true;
     if (priorFocus && priorFocus.isConnected) priorFocus.focus();
 }
@@ -235,6 +281,11 @@ function createUi() {
         '      <option value="az">名字：A → Z</option>',
         '      <option value="za">名字：Z → A</option>',
         '    </select>',
+        '    <select id="cs-theme" aria-label="配色模式">',
+        '      <option value="tavern">跟随酒馆</option>',
+        '      <option value="day">日间模式</option>',
+        '      <option value="gray">灰色夜间</option>',
+        '    </select>',
         '    <div class="cs-switch">',
         '      <button type="button" id="cs-view-list" data-action="list">☷ 列表</button>',
         '      <button type="button" id="cs-view-grid" data-action="grid">▦ 头像</button>',
@@ -242,10 +293,23 @@ function createUi() {
         '  </div>',
         '  <div id="cs-count" class="cs-count"></div>',
         '  <div id="cs-results" class="cs-results"></div>',
-        '  <footer class="cs-footer"><span>点角色打开 · 点铅笔编辑</span>',
+        '  <footer class="cs-footer"><span>点角色预览完整备注</span>',
         '    <div><button type="button" data-action="backup">备份备注</button>',
         '         <button type="button" data-action="restore">恢复备注</button></div></footer>',
         '</section>',
+        '<div class="cs-detail-layer" id="cs-detail" hidden>',
+        '  <div class="cs-detail-backdrop" data-action="detail-close"></div>',
+        '  <section class="cs-detail-window" role="dialog" aria-modal="true" aria-labelledby="cs-detail-name">',
+        '    <header class="cs-detail-header"><h3 id="cs-detail-name"></h3>',
+        '      <button type="button" id="cs-detail-close" data-action="detail-close" aria-label="关闭预览">×</button></header>',
+        '    <div id="cs-detail-note" class="cs-detail-note"></div>',
+        '    <div id="cs-detail-tags" class="cs-tags"></div>',
+        '    <footer class="cs-detail-actions">',
+        '      <button type="button" data-action="detail-edit">编辑备注</button>',
+        '      <button type="button" class="cs-primary" data-action="detail-jump">跳转卡面</button>',
+        '    </footer>',
+        '  </section>',
+        '</div>',
         '<div class="cs-editor-layer" id="cs-editor" hidden>',
         '  <div class="cs-editor-backdrop" data-action="cancel"></div>',
         '  <section class="cs-editor-window" role="dialog" aria-modal="true" aria-label="编辑私人备注">',
@@ -266,6 +330,9 @@ function createUi() {
         if (!target || !root.contains(target)) return;
         const action = target.dataset.action;
         if (action === 'close') return closePanel();
+        if (action === 'detail-close') return closeDetails();
+        if (action === 'detail-edit') return openEditor(detailKey);
+        if (action === 'detail-jump') return openCharacter(detailKey);
         if (action === 'cancel') return closeEditor();
         if (action === 'save') return saveEditor();
         if (action === 'list' || action === 'grid') {
@@ -275,14 +342,14 @@ function createUi() {
         }
         if (action === 'backup') return downloadNotes();
         if (action === 'restore') return root.querySelector('#cs-import-file').click();
-        if (action === 'edit' || action === 'open') {
+        if (action === 'open') {
             const key = target.closest('[data-avatar-key]')?.dataset.avatarKey;
-            if (!key) return;
-            return action === 'edit' ? openEditor(key) : openCharacter(key);
+            if (key) openDetails(key);
         }
     });
     root.querySelector('#cs-search').addEventListener('input', e => { query = e.target.value; render(); });
     root.querySelector('#cs-sort').addEventListener('change', e => { state().sort = e.target.value; save(); render(); });
+    root.querySelector('#cs-theme').addEventListener('change', e => { state().theme = e.target.value; save(); render(); });
     root.querySelector('#cs-note-input').addEventListener('input', e => {
         root.querySelector('#cs-length').textContent = e.target.value.length + ' 字';
     });
@@ -296,6 +363,7 @@ function createUi() {
         if (event.key === 'Escape') {
             event.preventDefault();
             if (!root.querySelector('#cs-editor').hidden) closeEditor();
+            else if (!root.querySelector('#cs-detail').hidden) closeDetails();
             else closePanel();
         }
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !root.querySelector('#cs-editor').hidden) {
@@ -329,7 +397,7 @@ function init() {
         event_types.CHARACTER_DELETED, event_types.CHARACTER_DUPLICATED]) {
         eventSource.on(type, () => {
             const root = document.getElementById(ROOT_ID);
-            if (root && !root.hidden) render();
+            if (root && !root.hidden) { render(); if (detailKey) updateDetails(); }
         });
     }
     eventSource.on(event_types.CHARACTER_RENAMED, (oldAvatar, newAvatar) => {
@@ -343,7 +411,7 @@ function init() {
             save();
         }
         const root = document.getElementById(ROOT_ID);
-        if (root && !root.hidden) render();
+        if (root && !root.hidden) { render(); if (detailKey) updateDetails(); }
     });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
