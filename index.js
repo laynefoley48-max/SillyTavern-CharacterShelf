@@ -16,6 +16,8 @@ let detailKey = '';
 let priorFocus = null;
 let floatPointer = null;
 let skipFloatClick = false;
+let floatPeekSide = null;
+let floatPeekTimer = null;
 let panelPointer = null;
 let panelLastFocus = null;
 let panelRendered = false;
@@ -759,19 +761,50 @@ function floatLocation(saved, dock, width, height) {
     }
     return null;
 }
+function cancelFloatPeekTimer() {
+    if (floatPeekTimer !== null) {
+        clearTimeout(floatPeekTimer);
+        floatPeekTimer = null;
+    }
+}
+function startFloatPeekTimer() {
+    cancelFloatPeekTimer();
+    if (!floatPeekSide) return;
+    floatPeekTimer = setTimeout(() => {
+        floatPeekTimer = null;
+        // Peeking is temporary; saved docking remains untouched.
+        if (floatPointer || !floatPeekSide) return;
+        floatPeekSide = null;
+        document.getElementById('cs-float-button')?.classList.add('cs-snapping');
+        updateFloat();
+    }, 3000);
+}
 function updateFloat() {
     const button = document.getElementById('cs-float-button');
     if (!button) return;
     const data = state();
     button.hidden = !data.showFloat;
+    if (button.hidden) {
+        cancelFloatPeekTimer();
+        floatPeekSide = null;
+    }
     button.dataset.theme = data.theme;
-    button.dataset.dock = data.floatDock || '';
-    button.title = data.floatDock ? '点击展开书本，之后可开关角色备注' : '点击开启/关闭角色备注（可拖动）';
-    button.setAttribute('aria-label', data.floatDock ? '展开悬浮书本' : '开启或关闭角色备注');
+    const peeking = Boolean(data.floatDock && floatPeekSide === data.floatDock);
+    button.dataset.dock = peeking ? '' : (data.floatDock || '');
+    button.title = peeking ? '点击开启/关闭角色备注（3秒无操作后自动收起）'
+        : data.floatDock ? '点击展开书本' : '点击开启/关闭角色备注（可拖动）';
+    button.setAttribute('aria-label', peeking ? '开启或关闭角色备注'
+        : data.floatDock ? '展开悬浮书本' : '开启或关闭角色备注');
     const checkbox = document.getElementById('cs-float-toggle');
     if (checkbox && checkbox.checked !== data.showFloat) checkbox.checked = data.showFloat;
     if (button.hidden) return;
-    const pos = floatLocation(data.floatPosition, data.floatDock, button.offsetWidth || 46, button.offsetHeight || 46);
+    const width = button.offsetWidth || 46;
+    const height = button.offsetHeight || 46;
+    const pos = peeking ? clampFloat(
+        floatPeekSide === 'left' ? 8 : viewportBounds().width - width - 8,
+        Number.isFinite(data.floatPosition?.y) ? data.floatPosition.y : viewportBounds().height * 0.55,
+        width, height
+    ) : floatLocation(data.floatPosition, data.floatDock, width, height);
     if (!pos) {
         button.style.left = '';
         button.style.top = '';
@@ -799,6 +832,7 @@ function buildFloat() {
     button.addEventListener('pointerdown', event => {
         if (event.button !== 0 || floatPointer) return;
         skipFloatClick = false;
+        cancelFloatPeekTimer();
         button.classList.remove('cs-snapping');
         const rect = button.getBoundingClientRect();
         floatPointer = {
@@ -826,8 +860,19 @@ function buildFloat() {
         if (!gesture || gesture.id !== event.pointerId) return;
         floatPointer = null;
         try { if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId); } catch (_) {}
-        if (!gesture.moving) return;
+        if (!gesture.moving) {
+            if (event.type === 'pointercancel') {
+                updateFloat();
+                startFloatPeekTimer();
+            }
+            return;
+        }
+        floatPeekSide = null;
         skipFloatClick = event.type === 'pointerup';
+        if (event.type === 'pointercancel') {
+            updateFloat();
+            return;
+        }
         // On release near either edge, tuck half the book off-screen.
         const rect = button.getBoundingClientRect();
         const bounds = viewportBounds();
@@ -851,21 +896,17 @@ function buildFloat() {
         }
         skipFloatClick = false;
         const data = state();
-        if (data.floatDock) {
-            // First tap on a half-hidden book only reveals it; no window state changes.
-            const bounds = viewportBounds();
-            const width = button.offsetWidth || 46;
-            const height = button.offsetHeight || 46;
-            const x = data.floatDock === 'left' ? 8 : bounds.width - width - 8;
-            const y = Number.isFinite(data.floatPosition?.y) ? data.floatPosition.y : bounds.height * 0.55;
-            data.floatPosition = clampFloat(x, y, width, height);
-            data.floatDock = null;
+        if (data.floatDock && floatPeekSide !== data.floatDock) {
+            // First tap: reveal temporarily, keeping the persisted dock location.
+            floatPeekSide = data.floatDock;
             button.classList.add('cs-snapping');
             updateFloat();
-            save();
+            startFloatPeekTimer();
             return;
         }
         toggleFloatPanel();
+        // A second tap is an action, so give the visible book another 3 seconds.
+        startFloatPeekTimer();
     });
     window.addEventListener('resize', queueViewportUpdate, { passive: true });
     window.visualViewport?.addEventListener('resize', queueViewportUpdate, { passive: true });
