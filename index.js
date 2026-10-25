@@ -20,6 +20,12 @@ let panelPointer = null;
 let panelLastFocus = null;
 let panelRendered = false;
 let panelNeedsRefresh = false;
+let cachedView = '';
+const cardCache = new Map();
+let searchTimer = null;
+let layoutViewport = null;
+let inputFocus = false;
+let resizeFrame = 0;
 
 function state() {
     if (!extension_settings[KEY] || typeof extension_settings[KEY] !== 'object' || Array.isArray(extension_settings[KEY])) {
@@ -34,6 +40,7 @@ function state() {
     if (!['all', 'noted', 'empty'].includes(data.filter)) data.filter = 'all';
     if (typeof data.showFloat !== 'boolean') data.showFloat = false;
     if (typeof data.fullscreen !== 'boolean') data.fullscreen = false;
+    if (!['left', 'right'].includes(data.floatDock)) data.floatDock = null;
     return data;
 }
 function save() { saveSettingsDebounced(); }
@@ -90,82 +97,159 @@ function avatar(character) {
     if (!character.avatar || character.avatar === 'none') return '/img/ai4.png';
     return getThumbnailUrl('avatar', character.avatar);
 }
-function render() {
+function matchesSearch(entry, note = noteFor(entry.key)) {
+    const needle = query.trim().toLocaleLowerCase();
+    if (!needle) return true;
+    return String(entry.character.name || '').toLocaleLowerCase().includes(needle)
+        || note.toLocaleLowerCase().includes(needle)
+        || visibleTags(entry.character).some(tag => tag.name.toLocaleLowerCase().includes(needle));
+}
+function passesFilter(note) {
+    const filter = state().filter;
+    return filter === 'all' || (filter === 'noted' ? Boolean(note.trim()) : !note.trim());
+}
+function updateCounts(matched) {
+    const root = document.getElementById(ROOT_ID);
+    if (!root) return;
+    const noted = matched.reduce((sum, entry) => sum + Number(Boolean(noteFor(entry.key).trim())), 0);
+    const counts = { all: matched.length, noted, empty: matched.length - noted };
+    const labels = { all: '全部', noted: '已备注', empty: '未备注' };
+    for (const value of ['all', 'noted', 'empty']) {
+        const button = root.querySelector('#cs-filter-' + value);
+        button.textContent = labels[value] + '（' + counts[value] + '）';
+        button.setAttribute('aria-pressed', String(state().filter === value));
+    }
+}
+function updateCardNote(card, note, view) {
+    if (view === 'list') {
+        const info = card.querySelector('.cs-info');
+        const existing = info.querySelector('.cs-summary');
+        if (!note.trim()) { existing?.remove(); return; }
+        const summary = existing || node('div', 'cs-summary');
+        summary.textContent = note.trim();
+        summary.title = note;
+        if (!existing) info.append(summary);
+        return;
+    }
+    const old = card.querySelector('.cs-dot');
+    if (!note.trim()) { old?.remove(); return; }
+    if (!old) {
+        const dot = node('span', 'cs-dot');
+        dot.title = '已添加备注';
+        card.append(dot);
+    }
+}
+function makeCard(entry, view) {
+    const card = node('div', 'cs-card cs-card-' + view);
+    card.dataset.avatarKey = entry.key;
+    const image = node('img', 'cs-avatar');
+    image.src = avatar(entry.character);
+    image.alt = '';
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    image.onerror = () => { image.onerror = null; image.src = '/img/ai4.png'; };
+    card.append(image);
+    const info = node('div', 'cs-info');
+    const name = node('div', 'cs-name', entry.character.name || '(未命名)');
+    name.title = entry.character.name || '';
+    info.append(name);
+    card.append(info);
+    updateCardNote(card, noteFor(entry.key), view);
+    const open = node('button', 'cs-open');
+    open.type = 'button';
+    open.dataset.action = 'open';
+    open.setAttribute('aria-label', '打开 ' + (entry.character.name || '角色'));
+    card.append(open);
+    return card;
+}
+function cardByKey(results, key) {
+    return Array.from(results.children).find(card => card.dataset.avatarKey === key) || null;
+}
+function listAnchor(results, preferredKey = null) {
+    const bounds = results.getBoundingClientRect();
+    const cards = Array.from(results.children).filter(card => card.dataset.avatarKey);
+    const selected = (preferredKey && cards.find(card => card.dataset.avatarKey === preferredKey))
+        || cards.find(card => card.getBoundingClientRect().bottom > bounds.top + 1)
+        || cards[0];
+    if (!selected) return null;
+    const next = selected.nextElementSibling;
+    const previous = selected.previousElementSibling;
+    const sibling = (next?.dataset.avatarKey && next) || (previous?.dataset.avatarKey && previous);
+    return {
+        key: selected.dataset.avatarKey,
+        offset: selected.getBoundingClientRect().top - bounds.top,
+        fallback: sibling?.dataset.avatarKey || '',
+        fallbackOffset: sibling ? sibling.getBoundingClientRect().top - bounds.top : 0,
+    };
+}
+function restoreAnchor(results, anchor) {
+    if (!anchor) return;
+    const card = cardByKey(results, anchor.key) || cardByKey(results, anchor.fallback);
+    if (!card) return;
+    const expected = card.dataset.avatarKey === anchor.key ? anchor.offset : anchor.fallbackOffset;
+    results.scrollTop += card.getBoundingClientRect().top - results.getBoundingClientRect().top - expected;
+}
+function render(anchor = null) {
     const root = document.getElementById(ROOT_ID);
     if (!root || root.hidden) return;
     const data = state();
     const results = root.querySelector('#cs-results');
     const all = allCharacters();
-    const needle = query.trim().toLocaleLowerCase();
-    const matched = all.filter(entry => !needle
-        || String(entry.character.name || '').toLocaleLowerCase().includes(needle)
-        || noteFor(entry.key).toLocaleLowerCase().includes(needle)
-        || visibleTags(entry.character).some(tag => tag.name.toLocaleLowerCase().includes(needle)));
-    const noted = matched.filter(entry => Boolean(noteFor(entry.key).trim())).length;
-    const unnoted = matched.length - noted;
-    const shown = matched.filter(entry => data.filter === 'all' ||
-        (data.filter === 'noted' ? Boolean(noteFor(entry.key).trim()) : !noteFor(entry.key).trim()));
+    const matched = all.filter(entry => matchesSearch(entry));
+    const shown = matched.filter(entry => passesFilter(noteFor(entry.key)));
     shown.sort(sortItems);
-    const previousScroll = results.scrollTop;
-    results.replaceChildren();
+    const scroll = results.scrollTop;
+    if (cachedView !== data.view) {
+        cachedView = data.view;
+        cardCache.clear();
+    }
     results.className = 'cs-results cs-' + data.view;
     root.querySelector('#cs-sort').value = data.sort;
     root.dataset.theme = data.theme;
     const palette = root.querySelector('#cs-theme-cycle');
-    const themeNames = { tavern:'跟随酒馆', day:'日间模式', gray:'灰色夜间' };
-    palette.title = '当前：' + themeNames[data.theme] + '（点击切换）';
+    const themes = { tavern: '跟随酒馆', day: '日间模式', gray: '灰色夜间' };
+    palette.title = '当前：' + themes[data.theme] + '（点击切换）';
     palette.setAttribute('aria-label', palette.title);
-    const counts = { all:matched.length, noted:noted, empty:unnoted };
-    const labels = { all:'全部', noted:'已备注', empty:'未备注' };
-    for (const value of ['all', 'noted', 'empty']) {
-        const button = root.querySelector('#cs-filter-' + value);
-        button.textContent = labels[value] + '（' + counts[value] + '）';
-        button.setAttribute('aria-pressed', String(data.filter === value));
-    }
+    updateCounts(matched);
     updateFloat();
     root.querySelector('#cs-view-list').setAttribute('aria-pressed', String(data.view === 'list'));
     root.querySelector('#cs-view-grid').setAttribute('aria-pressed', String(data.view === 'grid'));
     if (!shown.length) {
-        results.append(node('p', 'cs-empty', needle ? '没有匹配的角色或备注' : '还没有角色卡'));
+        results.replaceChildren(node('p', 'cs-empty', query.trim() ? '没有匹配的角色或备注' : '当前筛选没有角色卡'));
         panelRendered = true;
         return;
     }
-    const batch = document.createDocumentFragment();
+    const fragment = document.createDocumentFragment();
     for (const entry of shown) {
-        const card = node('div', 'cs-card cs-card-' + data.view);
-        card.dataset.avatarKey = entry.key;
-        const image = node('img', 'cs-avatar');
-        image.src = avatar(entry.character);
-        image.alt = '';
-        image.loading = 'lazy';
-        image.decoding = 'async';
-        image.onerror = () => { image.onerror = null; image.src = '/img/ai4.png'; };
-        card.append(image);
-        const info = node('div', 'cs-info');
-        const name = node('div', 'cs-name', entry.character.name || '(未命名)');
-        name.title = entry.character.name || '';
-        info.append(name);
-        const note = noteFor(entry.key);
-        if (data.view === 'list' && note.trim()) {
-            const summary = node('div', 'cs-summary', note.trim());
-            summary.title = note;
-            info.append(summary);
-        } else if (data.view === 'grid' && note.trim()) {
-            const dot = node('span', 'cs-dot');
-            dot.title = '已添加备注';
-            card.append(dot);
+        let card = cardCache.get(entry.key);
+        if (!card) {
+            card = makeCard(entry, data.view);
+            cardCache.set(entry.key, card);
         }
-        card.append(info);
-        const open = node('button', 'cs-open');
-        open.type = 'button';
-        open.dataset.action = 'open';
-        open.setAttribute('aria-label', '打开 ' + (entry.character.name || '角色'));
-        card.append(open);
-        batch.append(card);
+        fragment.append(card);
     }
-    results.append(batch);
-    results.scrollTop = previousScroll;
+    results.replaceChildren(fragment);
+    results.scrollTop = scroll;
+    restoreAnchor(results, anchor);
     panelRendered = true;
+}
+function refreshEditedCard(key, previous, next) {
+    const root = document.getElementById(ROOT_ID);
+    if (!root || root.hidden) { panelNeedsRefresh = true; return; }
+    const results = root.querySelector('#cs-results');
+    const entry = allCharacters().find(item => item.key === key);
+    if (!entry) { cardCache.clear(); render(); return; }
+    const before = matchesSearch(entry, previous) && passesFilter(previous);
+    const after = matchesSearch(entry, next) && passesFilter(next);
+    const cached = cardCache.get(key);
+    const anchor = listAnchor(results, key);
+    if (cached) updateCardNote(cached, next, state().view);
+    if (before !== after || (after && !cached)) {
+        render(anchor);
+        return;
+    }
+    updateCounts(allCharacters().filter(item => matchesSearch(item)));
+    restoreAnchor(results, anchor);
 }
 function updateDetails() {
     const root = document.getElementById(ROOT_ID);
@@ -212,13 +296,15 @@ function closeEditor() {
 }
 function saveEditor() {
     if (!editing) return;
+    const key = editing;
     const value = document.getElementById('cs-note-input').value.trim();
     const notes = state().notes;
+    const previous = noteFor(key);
     if (value) notes[editing] = value;
     else delete notes[editing];
     save();
     closeEditor();
-    render();
+    refreshEditedCard(key, previous, value);
     if (detailKey) updateDetails();
 }
 function viewportBounds() {
@@ -282,6 +368,8 @@ function openPanel() {
     if (!root || !root.hidden) return;
     priorFocus = document.activeElement;
     root.hidden = false;
+    if (!layoutViewport) layoutViewport = { width: window.innerWidth, height: window.innerHeight };
+    setPanelBaseHeight(root);
     updatePanelMode();
     if (!panelRendered || panelNeedsRefresh) {
         render();
@@ -296,6 +384,7 @@ function closePanel() {
     if (!root || root.hidden) return;
     if (root.contains(document.activeElement)) panelLastFocus = document.activeElement;
     root.hidden = true;
+    if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; }
     if (priorFocus?.isConnected && !root.contains(priorFocus)) priorFocus.focus({ preventScroll: true });
 }
 function toggleFloatPanel() {
@@ -395,7 +484,7 @@ function createUi() {
     root.innerHTML = [
         '<div class="cs-backdrop" data-action="close"></div>',
         '<section class="cs-window" role="dialog" aria-modal="false" aria-label="角色备注">',
-        '  <header class="cs-header"><h2>角色备注</h2>',
+        '  <header class="cs-header"><div class="cs-heading"><h2>角色备注</h2><small class="cs-header-hint">点击悬浮按钮开启/关闭窗口</small></div>',
         '    <div class="cs-head-actions">',
         '      <button type="button" id="cs-theme-cycle" class="cs-icon-button" data-action="palette" title="切换配色" aria-label="切换配色"><i class="fa-solid fa-palette" aria-hidden="true"></i></button>',
         '      <button type="button" id="cs-fullscreen" class="cs-icon-button" data-action="fullscreen" title="切换全屏" aria-label="切换全屏"><i class="fa-solid fa-expand" aria-hidden="true"></i></button>',
@@ -470,7 +559,14 @@ function createUi() {
         if (action === 'palette') {
             const options = ['tavern', 'day', 'gray'];
             state().theme = options[(options.indexOf(state().theme) + 1) % options.length];
-            save(); render(); return;
+            save();
+            root.dataset.theme = state().theme;
+            const names = { tavern: '跟随酒馆', day: '日间模式', gray: '灰色夜间' };
+            const palette = root.querySelector('#cs-theme-cycle');
+            palette.title = '当前：' + names[state().theme] + '（点击切换）';
+            palette.setAttribute('aria-label', palette.title);
+            updateFloat();
+            return;
         }
         if (action.startsWith('filter-')) {
             state().filter = action.slice(7);
@@ -488,11 +584,18 @@ function createUi() {
             if (key) openDetails(key);
         }
     });
-    root.querySelector('#cs-search').addEventListener('input', e => { query = e.target.value; render(); });
+    root.querySelector('#cs-search').addEventListener('input', e => {
+        query = e.target.value;
+        if (searchTimer) clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => { searchTimer = null; render(); }, 135);
+    });
     root.querySelector('#cs-sort').addEventListener('change', e => { state().sort = e.target.value; save(); render(); });
     root.querySelector('#cs-note-input').addEventListener('input', e => {
         root.querySelector('#cs-length').textContent = e.target.value.length + ' 字';
     });
+    const editorInput = root.querySelector('#cs-note-input');
+    editorInput.addEventListener('focus', () => { inputFocus = true; });
+    editorInput.addEventListener('blur', () => { inputFocus = false; queueViewportUpdate(); });
     const importInput = root.querySelector('#cs-import-file');
     importInput.addEventListener('change', async e => {
         try { await restoreNotes(e.target.files?.[0]); }
