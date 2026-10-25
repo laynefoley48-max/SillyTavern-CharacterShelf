@@ -6,6 +6,6 @@
   "js": "index.js",
   "css": "style.css",
   "author": "ChatGPT",
-  "version": "0.7.0",
-  "description": "Private character notes with 20/30/50/100 per-page pagination, GPU-composited frame-throttled mini-window dragging, and a two-state floating book with 3-second idle retract."
+  "version": "0.7.1",
+  "description": "Private character notes with page controls, draggable window, side-docked book, on-demand update checking, and in-extension introduction and changelog."
 }
