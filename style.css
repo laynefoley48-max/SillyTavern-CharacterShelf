@@ -803,3 +803,72 @@
 @media (prefers-reduced-motion: reduce) {
     #cs-float-button.cs-snapping { transition: none; }
 }
+
+
+/* v0.7.0: compact paging bar. Only one page of avatars exists at a time. */
+#character-shelf-root .cs-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 7px;
+    min-width: 0;
+    min-height: 39px;
+    padding: 5px 11px max(5px, env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--cs-border);
+    font-size: 11px;
+    color: var(--cs-muted);
+}
+#character-shelf-root .cs-per-page,
+#character-shelf-root .cs-page-controls {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 4px;
+    white-space: nowrap;
+}
+#character-shelf-root .cs-page-count {
+    min-width: 0;
+    flex: 1 1 auto;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--cs-faint);
+}
+#character-shelf-root .cs-pagination :is(select, button) {
+    height: 27px;
+    min-height: 27px;
+    background: var(--cs-control);
+    color: var(--cs-text);
+    border: 1px solid var(--cs-border);
+    border-radius: 6px;
+    font-size: 11px;
+    padding: 0 4px;
+}
+#character-shelf-root #cs-page-size { width: 48px; }
+#character-shelf-root #cs-page-jump { width: 65px; }
+#character-shelf-root .cs-page-controls button {
+    width: 27px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+}
+#character-shelf-root .cs-page-controls button:disabled {
+    opacity: .35;
+    cursor: default;
+}
+@media (max-width: 390px) {
+    #character-shelf-root .cs-page-count { display: none; }
+    #character-shelf-root .cs-pagination { padding-inline: 8px; gap: 4px; }
+}
+@media (max-width: 300px) {
+    #character-shelf-root .cs-pagination { font-size: 10px; }
+    #character-shelf-root .cs-page-controls button { width: 23px; }
+    #character-shelf-root #cs-page-jump { width: 58px; }
+}
+/* Transient compositor hint only while dragging; release it on pointerup/cancel. */
+#character-shelf-root[data-fullscreen="false"] .cs-window.cs-dragging {
+    will-change: transform;
+}
