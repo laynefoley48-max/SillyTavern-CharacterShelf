@@ -239,6 +239,7 @@ function positionPanel() {
     const root = document.getElementById(ROOT_ID);
     if (!root) return;
     const win = root.querySelector('.cs-window');
+    root.style.setProperty('--cs-visible-height', viewportBounds().height + 'px');
     if (state().fullscreen) {
         win.style.left = '';
         win.style.top = '';
@@ -370,7 +371,9 @@ async function restoreNotes(file) {
     const notes = state().notes;
     for (const [key, value] of entries) if (value) notes[key] = value;
     save();
-    render();
+    const root = document.getElementById(ROOT_ID);
+    if (root && !root.hidden) render();
+    else panelNeedsRefresh = true;
     window.toastr?.success?.('已恢复 ' + entries.length + ' 条备注', '角色备注');
 }
 async function openCharacter(key) {
@@ -446,6 +449,7 @@ function createUi() {
     ].join('\n');
     document.body.append(root);
     enablePanelDrag(root);
+    root.addEventListener('focusin', event => { panelLastFocus = event.target; });
 
     root.addEventListener('click', event => {
         const target = event.target.closest('[data-action]');
@@ -499,6 +503,7 @@ function createUi() {
     document.body.append(importInput);
     document.addEventListener('keydown', event => {
         if (root.hidden) return;
+        if (!state().fullscreen && !root.contains(event.target)) return;
         if (event.key === 'Escape') {
             event.preventDefault();
             if (!root.querySelector('#cs-editor').hidden) closeEditor();
