@@ -994,10 +994,13 @@ function buildFloat() {
         skipFloatClick = false;
         const data = state();
         if (data.floatDock && floatPeekSide !== data.floatDock) {
-            // First tap: reveal temporarily, keeping the persisted dock location.
+            // First tap reveals the docked book. If the browser is closed, open it too.
+            // If already open, leave it open so the initial tap cannot dismiss it accidentally.
             floatPeekSide = data.floatDock;
             button.classList.add('cs-snapping');
             updateFloat();
+            const root = document.getElementById(ROOT_ID);
+            if (root?.hidden) openPanel();
             startFloatPeekTimer();
             return;
         }
