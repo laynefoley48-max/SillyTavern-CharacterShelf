@@ -19,13 +19,15 @@ let skipFloatClick = false;
 
 function state() {
     if (!extension_settings[KEY] || typeof extension_settings[KEY] !== 'object' || Array.isArray(extension_settings[KEY])) {
-        extension_settings[KEY] = { notes: {}, view: 'list', sort: 'newest', theme: 'gray' };
+        extension_settings[KEY] = { notes: {}, view: 'list', sort: 'newest', theme: 'tavern', filter: 'all', themeVersion: 4 };
     }
     const data = extension_settings[KEY];
     if (!data.notes || typeof data.notes !== 'object' || Array.isArray(data.notes)) data.notes = {};
     if (data.view !== 'grid' && data.view !== 'list') data.view = 'list';
     if (!['newest', 'oldest', 'az', 'za'].includes(data.sort)) data.sort = 'newest';
-    if (!['tavern', 'day', 'gray'].includes(data.theme)) data.theme = 'gray';
+    if (!['tavern', 'day', 'gray'].includes(data.theme)) data.theme = 'tavern';
+    if (data.themeVersion !== 4) { if (data.theme === 'gray') data.theme = 'tavern'; data.themeVersion = 4; }
+    if (!['all', 'noted', 'empty'].includes(data.filter)) data.filter = 'all';
     if (typeof data.showFloat !== 'boolean') data.showFloat = false;
     return data;
 }
@@ -50,9 +52,9 @@ function whenAdded(character) {
     return Number.isFinite(d) ? d : null;
 }
 function allCharacters() {
-    return characters.filter(Boolean).map((character, index) => ({
+    return characters.map((character, index) => character && ({
         character: character, index: index, key: idFor(character), time: whenAdded(character),
-    }));
+    })).filter(Boolean);
 }
 function sortItems(a, b) {
     const order = state().sort;
@@ -67,17 +69,16 @@ function sortItems(a, b) {
     return b.index - a.index;
 }
 function visibleTags(character) {
-    return getTagsList(character.avatar).filter(tag => !tag.is_hidden_on_character_card && tag.name);
+    return getTagsList(character.avatar).filter(tag => tag && tag.name);
 }
-function makeTags(character, limit = 9) {
+function makeTags(character) {
     const holder = node('div', 'cs-tags');
     const items = visibleTags(character);
-    for (const tag of items.slice(0, limit)) {
+    for (const tag of items) {
         const chip = node('span', 'cs-tag', tag.name);
         chip.title = tag.name;
         holder.append(chip);
     }
-    if (items.length > limit) holder.append(node('span', 'cs-tag cs-tag-more', '+' + (items.length - limit)));
     return holder;
 }
 function avatar(character) {
@@ -91,21 +92,33 @@ function render() {
     const results = root.querySelector('#cs-results');
     const all = allCharacters();
     const needle = query.trim().toLocaleLowerCase();
-    const shown = all.filter(entry => !needle
+    const matched = all.filter(entry => !needle
         || String(entry.character.name || '').toLocaleLowerCase().includes(needle)
         || noteFor(entry.key).toLocaleLowerCase().includes(needle)
         || visibleTags(entry.character).some(tag => tag.name.toLocaleLowerCase().includes(needle)));
+    const noted = matched.filter(entry => Boolean(noteFor(entry.key).trim())).length;
+    const unnoted = matched.length - noted;
+    const shown = matched.filter(entry => data.filter === 'all' ||
+        (data.filter === 'noted' ? Boolean(noteFor(entry.key).trim()) : !noteFor(entry.key).trim()));
     shown.sort(sortItems);
     results.replaceChildren();
     results.className = 'cs-results cs-' + data.view;
     root.querySelector('#cs-sort').value = data.sort;
-    root.querySelector('#cs-theme').value = data.theme;
     root.dataset.theme = data.theme;
+    const palette = root.querySelector('#cs-theme-cycle');
+    const themeNames = { tavern:'跟随酒馆', day:'日间模式', gray:'灰色夜间' };
+    palette.title = '当前：' + themeNames[data.theme] + '（点击切换）';
+    palette.setAttribute('aria-label', palette.title);
+    const counts = { all:matched.length, noted:noted, empty:unnoted };
+    const labels = { all:'全部', noted:'已备注', empty:'未备注' };
+    for (const value of ['all', 'noted', 'empty']) {
+        const button = root.querySelector('#cs-filter-' + value);
+        button.textContent = labels[value] + '（' + counts[value] + '）';
+        button.setAttribute('aria-pressed', String(data.filter === value));
+    }
     updateFloat();
     root.querySelector('#cs-view-list').setAttribute('aria-pressed', String(data.view === 'list'));
     root.querySelector('#cs-view-grid').setAttribute('aria-pressed', String(data.view === 'grid'));
-    root.querySelector('#cs-count').textContent = '共 ' + all.length + ' 张 · 已备注 '
-        + all.filter(entry => noteFor(entry.key).trim()).length + ' 张 · 显示 ' + shown.length + ' 张';
     if (!shown.length) {
         results.append(node('p', 'cs-empty', needle ? '没有匹配的角色或备注' : '还没有角色卡'));
         return;
@@ -155,7 +168,7 @@ function updateDetails() {
     content.textContent = note || '还没有添加私人备注。可以点击下方「编辑备注」填写。';
     content.classList.toggle('cs-placeholder', !note);
     const tags = root.querySelector('#cs-detail-tags');
-    tags.replaceChildren(...makeTags(entry.character, 40).childNodes);
+    tags.replaceChildren(...makeTags(entry.character).childNodes);
     tags.hidden = !tags.childElementCount;
 }
 function openDetails(key) {
@@ -272,32 +285,30 @@ function createUi() {
     root.innerHTML = [
         '<div class="cs-backdrop" data-action="close"></div>',
         '<section class="cs-window" role="dialog" aria-modal="true" aria-label="角色备注">',
-        '  <header class="cs-header"><div><div class="cs-eyebrow">CHARACTER NOTES</div>',
-        '    <h2>角色备注</h2><p>每张角色卡，都有一条只属于你的备注。</p></div>',
-        '    <button type="button" class="cs-close" data-action="close" aria-label="关闭">×</button></header>',
+        '  <header class="cs-header"><h2>角色备注</h2>',
+        '    <div class="cs-head-actions">',
+        '      <button type="button" id="cs-theme-cycle" class="cs-icon-button" data-action="palette" title="切换配色" aria-label="切换配色"><i class="fa-solid fa-palette" aria-hidden="true"></i></button>',
+        '      <button type="button" class="cs-close" data-action="close" aria-label="关闭">×</button>',
+        '    </div></header>',
         '  <div class="cs-toolbar">',
         '    <input id="cs-search" type="search" placeholder="搜索角色名字或备注…" aria-label="搜索角色" />',
         '    <select id="cs-sort" aria-label="排序">',
-        '      <option value="newest">导入时间：新 → 旧</option>',
-        '      <option value="oldest">导入时间：旧 → 新</option>',
-        '      <option value="az">名字：A → Z</option>',
-        '      <option value="za">名字：Z → A</option>',
-        '    </select>',
-        '    <select id="cs-theme" aria-label="配色模式">',
-        '      <option value="tavern">跟随酒馆</option>',
-        '      <option value="day">日间模式</option>',
-        '      <option value="gray">灰色夜间</option>',
+        '      <option value="newest">导入：新→旧</option>',
+        '      <option value="oldest">导入：旧→新</option>',
+        '      <option value="az">名字：A→Z</option>',
+        '      <option value="za">名字：Z→A</option>',
         '    </select>',
         '    <div class="cs-switch">',
-        '      <button type="button" id="cs-view-list" data-action="list">☷ 列表</button>',
-        '      <button type="button" id="cs-view-grid" data-action="grid">▦ 头像</button>',
+        '      <button type="button" id="cs-view-list" data-action="list" title="列表视图" aria-label="列表视图"><i class="fa-solid fa-list" aria-hidden="true"></i></button>',
+        '      <button type="button" id="cs-view-grid" data-action="grid" title="头像视图" aria-label="头像视图"><i class="fa-solid fa-table-cells" aria-hidden="true"></i></button>',
         '    </div>',
         '  </div>',
-        '  <div id="cs-count" class="cs-count"></div>',
+        '  <div class="cs-filters" role="group" aria-label="备注筛选">',
+        '    <button type="button" id="cs-filter-all" data-action="filter-all">全部（0）</button>',
+        '    <button type="button" id="cs-filter-noted" data-action="filter-noted">已备注（0）</button>',
+        '    <button type="button" id="cs-filter-empty" data-action="filter-empty">未备注（0）</button>',
+        '  </div>',
         '  <div id="cs-results" class="cs-results"></div>',
-        '  <footer class="cs-footer"><span>点角色预览完整备注</span>',
-        '    <div><button type="button" data-action="backup">备份备注</button>',
-        '         <button type="button" data-action="restore">恢复备注</button></div></footer>',
         '</section>',
         '<div class="cs-detail-layer" id="cs-detail" hidden>',
         '  <div class="cs-detail-backdrop" data-action="detail-close"></div>',
@@ -337,6 +348,15 @@ function createUi() {
         if (action === 'detail-jump') return openCharacter(detailKey);
         if (action === 'cancel') return closeEditor();
         if (action === 'save') return saveEditor();
+        if (action === 'palette') {
+            const options = ['tavern', 'day', 'gray'];
+            state().theme = options[(options.indexOf(state().theme) + 1) % options.length];
+            save(); render(); return;
+        }
+        if (action.startsWith('filter-')) {
+            state().filter = action.slice(7);
+            save(); render(); return;
+        }
         if (action === 'list' || action === 'grid') {
             state().view = action;
             save();
@@ -351,7 +371,6 @@ function createUi() {
     });
     root.querySelector('#cs-search').addEventListener('input', e => { query = e.target.value; render(); });
     root.querySelector('#cs-sort').addEventListener('change', e => { state().sort = e.target.value; save(); render(); });
-    root.querySelector('#cs-theme').addEventListener('change', e => { state().theme = e.target.value; save(); render(); updateFloat(); });
     root.querySelector('#cs-note-input').addEventListener('input', e => {
         root.querySelector('#cs-length').textContent = e.target.value.length + ' 字';
     });
