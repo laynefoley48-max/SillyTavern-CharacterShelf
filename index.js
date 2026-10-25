@@ -16,6 +16,10 @@ let detailKey = '';
 let priorFocus = null;
 let floatPointer = null;
 let skipFloatClick = false;
+let panelPointer = null;
+let panelLastFocus = null;
+let panelRendered = false;
+let panelNeedsRefresh = false;
 
 function state() {
     if (!extension_settings[KEY] || typeof extension_settings[KEY] !== 'object' || Array.isArray(extension_settings[KEY])) {
@@ -29,6 +33,7 @@ function state() {
     if (data.themeVersion !== 4) { if (data.theme === 'gray') data.theme = 'tavern'; data.themeVersion = 4; }
     if (!['all', 'noted', 'empty'].includes(data.filter)) data.filter = 'all';
     if (typeof data.showFloat !== 'boolean') data.showFloat = false;
+    if (typeof data.fullscreen !== 'boolean') data.fullscreen = false;
     return data;
 }
 function save() { saveSettingsDebounced(); }
@@ -101,6 +106,7 @@ function render() {
     const shown = matched.filter(entry => data.filter === 'all' ||
         (data.filter === 'noted' ? Boolean(noteFor(entry.key).trim()) : !noteFor(entry.key).trim()));
     shown.sort(sortItems);
+    const previousScroll = results.scrollTop;
     results.replaceChildren();
     results.className = 'cs-results cs-' + data.view;
     root.querySelector('#cs-sort').value = data.sort;
@@ -121,6 +127,7 @@ function render() {
     root.querySelector('#cs-view-grid').setAttribute('aria-pressed', String(data.view === 'grid'));
     if (!shown.length) {
         results.append(node('p', 'cs-empty', needle ? '没有匹配的角色或备注' : '还没有角色卡'));
+        panelRendered = true;
         return;
     }
     const batch = document.createDocumentFragment();
@@ -139,11 +146,11 @@ function render() {
         name.title = entry.character.name || '';
         info.append(name);
         const note = noteFor(entry.key);
-        if (data.view === 'list') {
-            const summary = node('div', 'cs-summary' + (note.trim() ? '' : ' cs-placeholder'), note.trim() || '还没有备注，点击查看并添加');
+        if (data.view === 'list' && note.trim()) {
+            const summary = node('div', 'cs-summary', note.trim());
             summary.title = note;
             info.append(summary);
-        } else if (note.trim()) {
+        } else if (data.view === 'grid' && note.trim()) {
             const dot = node('span', 'cs-dot');
             dot.title = '已添加备注';
             card.append(dot);
@@ -157,6 +164,8 @@ function render() {
         batch.append(card);
     }
     results.append(batch);
+    results.scrollTop = previousScroll;
+    panelRendered = true;
 }
 function updateDetails() {
     const root = document.getElementById(ROOT_ID);
@@ -212,25 +221,123 @@ function saveEditor() {
     render();
     if (detailKey) updateDetails();
 }
-function openPanel() {
+function viewportBounds() {
+    return {
+        width: Math.max(1, Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth)),
+        height: Math.max(1, Math.min(window.innerHeight, window.visualViewport?.height || window.innerHeight)),
+    };
+}
+function clampWindow(left, top, width, height) {
+    const viewport = viewportBounds();
+    const margin = 8;
+    return {
+        x: Math.max(margin, Math.min(left, Math.max(margin, viewport.width - width - margin))),
+        y: Math.max(margin, Math.min(top, Math.max(margin, viewport.height - height - margin))),
+    };
+}
+function positionPanel() {
     const root = document.getElementById(ROOT_ID);
     if (!root) return;
+    const win = root.querySelector('.cs-window');
+    if (state().fullscreen) {
+        win.style.left = '';
+        win.style.top = '';
+        win.style.transform = '';
+        return;
+    }
+    const saved = state().panelPosition;
+    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+        const rect = win.getBoundingClientRect();
+        const pos = clampWindow(saved.x, saved.y, rect.width, rect.height);
+        win.style.left = pos.x + 'px';
+        win.style.top = pos.y + 'px';
+        win.style.transform = 'none';
+    } else {
+        win.style.left = '';
+        win.style.top = '';
+        win.style.transform = '';
+        const rect = win.getBoundingClientRect();
+        const pos = clampWindow(rect.left, rect.top, rect.width, rect.height);
+        if (Math.abs(rect.left - pos.x) > 1 || Math.abs(rect.top - pos.y) > 1) {
+            win.style.left = pos.x + 'px';
+            win.style.top = pos.y + 'px';
+            win.style.transform = 'none';
+        }
+    }
+}
+function updatePanelMode() {
+    const root = document.getElementById(ROOT_ID);
+    if (!root) return;
+    const fullscreen = state().fullscreen;
+    root.dataset.fullscreen = String(fullscreen);
+    const button = root.querySelector('#cs-fullscreen');
+    button.title = fullscreen ? '恢复悬浮窗口' : '切换全屏';
+    button.setAttribute('aria-label', button.title);
+    button.querySelector('i').className = fullscreen ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
+    positionPanel();
+}
+function openPanel() {
+    const root = document.getElementById(ROOT_ID);
+    if (!root || !root.hidden) return;
     priorFocus = document.activeElement;
-    closeEditor();
-    closeDetails();
     root.hidden = false;
-    query = '';
-    root.querySelector('#cs-search').value = '';
-    render();
-    root.querySelector('#cs-search').focus();
+    updatePanelMode();
+    if (!panelRendered || panelNeedsRefresh) {
+        render();
+        panelNeedsRefresh = false;
+    }
+    if (panelLastFocus?.isConnected && root.contains(panelLastFocus)) {
+        panelLastFocus.focus({ preventScroll: true });
+    }
 }
 function closePanel() {
     const root = document.getElementById(ROOT_ID);
-    if (!root) return;
-    closeEditor();
-    closeDetails();
+    if (!root || root.hidden) return;
+    if (root.contains(document.activeElement)) panelLastFocus = document.activeElement;
     root.hidden = true;
-    if (priorFocus && priorFocus.isConnected) priorFocus.focus();
+    if (priorFocus?.isConnected && !root.contains(priorFocus)) priorFocus.focus({ preventScroll: true });
+}
+function toggleFloatPanel() {
+    const root = document.getElementById(ROOT_ID);
+    if (!root) return;
+    if (root.hidden) openPanel();
+    else closePanel();
+}
+function enablePanelDrag(root) {
+    const win = root.querySelector('.cs-window');
+    root.addEventListener('pointerdown', event => {
+        if (state().fullscreen || event.button !== 0 || panelPointer) return;
+        const handle = event.target.closest('.cs-header, .cs-detail-header, .cs-editor-title');
+        if (!handle || event.target.closest('button, input, select, textarea, a')) return;
+        const rect = win.getBoundingClientRect();
+        panelPointer = { id: event.pointerId, handle,
+            x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moving: false };
+        try { handle.setPointerCapture(event.pointerId); } catch (_) {}
+    });
+    root.addEventListener('pointermove', event => {
+        const g = panelPointer;
+        if (!g || g.id !== event.pointerId) return;
+        const dx = event.clientX - g.x, dy = event.clientY - g.y;
+        if (!g.moving && Math.hypot(dx, dy) < 5) return;
+        g.moving = true;
+        const rect = win.getBoundingClientRect();
+        const pos = clampWindow(g.left + dx, g.top + dy, rect.width, rect.height);
+        win.style.left = pos.x + 'px';
+        win.style.top = pos.y + 'px';
+        win.style.transform = 'none';
+    });
+    const finish = event => {
+        const g = panelPointer;
+        if (!g || g.id !== event.pointerId) return;
+        panelPointer = null;
+        try { if (g.handle.hasPointerCapture(event.pointerId)) g.handle.releasePointerCapture(event.pointerId); } catch (_) {}
+        if (!g.moving || event.type !== 'pointerup') return;
+        const rect = win.getBoundingClientRect();
+        state().panelPosition = clampWindow(rect.left, rect.top, rect.width, rect.height);
+        save();
+    };
+    root.addEventListener('pointerup', finish);
+    root.addEventListener('pointercancel', finish);
 }
 function downloadNotes() {
     const data = {
@@ -284,10 +391,11 @@ function createUi() {
     root.hidden = true;
     root.innerHTML = [
         '<div class="cs-backdrop" data-action="close"></div>',
-        '<section class="cs-window" role="dialog" aria-modal="true" aria-label="角色备注">',
+        '<section class="cs-window" role="dialog" aria-modal="false" aria-label="角色备注">',
         '  <header class="cs-header"><h2>角色备注</h2>',
         '    <div class="cs-head-actions">',
         '      <button type="button" id="cs-theme-cycle" class="cs-icon-button" data-action="palette" title="切换配色" aria-label="切换配色"><i class="fa-solid fa-palette" aria-hidden="true"></i></button>',
+        '      <button type="button" id="cs-fullscreen" class="cs-icon-button" data-action="fullscreen" title="切换全屏" aria-label="切换全屏"><i class="fa-solid fa-expand" aria-hidden="true"></i></button>',
         '      <button type="button" class="cs-close" data-action="close" aria-label="关闭">×</button>',
         '    </div></header>',
         '  <div class="cs-toolbar">',
@@ -309,7 +417,6 @@ function createUi() {
         '    <button type="button" id="cs-filter-empty" data-action="filter-empty">未备注（0）</button>',
         '  </div>',
         '  <div id="cs-results" class="cs-results"></div>',
-        '</section>',
         '<div class="cs-detail-layer" id="cs-detail" hidden>',
         '  <div class="cs-detail-backdrop" data-action="detail-close"></div>',
         '  <section class="cs-detail-window" role="dialog" aria-modal="true" aria-labelledby="cs-detail-name">',
@@ -334,9 +441,11 @@ function createUi() {
         '       <button type="button" class="cs-primary" data-action="save">保存备注</button></div>',
         '  </section>',
         '</div>',
+        '</section>',
         '<input id="cs-import-file" type="file" accept=".json,application/json" hidden />',
     ].join('\n');
     document.body.append(root);
+    enablePanelDrag(root);
 
     root.addEventListener('click', event => {
         const target = event.target.closest('[data-action]');
@@ -348,6 +457,12 @@ function createUi() {
         if (action === 'detail-jump') return openCharacter(detailKey);
         if (action === 'cancel') return closeEditor();
         if (action === 'save') return saveEditor();
+        if (action === 'fullscreen') {
+            state().fullscreen = !state().fullscreen;
+            save();
+            updatePanelMode();
+            return;
+        }
         if (action === 'palette') {
             const options = ['tavern', 'day', 'gray'];
             state().theme = options[(options.indexOf(state().theme) + 1) % options.length];
@@ -567,9 +682,14 @@ function buildFloat() {
             return;
         }
         skipFloatClick = false;
-        openPanel();
+        toggleFloatPanel();
     });
-    window.addEventListener('resize', () => updateFloat(), { passive: true });
+    const reposition = () => {
+        updateFloat();
+        if (!document.getElementById(ROOT_ID)?.hidden) positionPanel();
+    };
+    window.addEventListener('resize', reposition, { passive: true });
+    window.visualViewport?.addEventListener('resize', reposition, { passive: true });
     updateFloat();
 }
 function init() {
@@ -592,6 +712,7 @@ function init() {
         eventSource.on(type, () => {
             const root = document.getElementById(ROOT_ID);
             if (root && !root.hidden) { render(); if (detailKey) updateDetails(); }
+            else panelNeedsRefresh = true;
         });
     }
     eventSource.on(event_types.CHARACTER_RENAMED, (oldAvatar, newAvatar) => {
@@ -606,6 +727,7 @@ function init() {
         }
         const root = document.getElementById(ROOT_ID);
         if (root && !root.hidden) { render(); if (detailKey) updateDetails(); }
+            else panelNeedsRefresh = true;
     });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
